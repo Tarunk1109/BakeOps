@@ -2,8 +2,86 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --bg-base: #0A0A0B;
+  --bg-surface: #131316;
+  --bg-elevated: #1C1C20;
+  --border-subtle: #1F1F23;
+  --border-default: #2A2A30;
+  --border-strong: #3D3D45;
+  --text-primary: #FAFAFA;
+  --text-secondary: #A1A1AA;
+  --text-tertiary: #71717A;
+  --text-muted: #52525B;
+  --accent: #F59E0B;
+  --accent-muted: #D97706;
+  --accent-dim: #78350F;
+  --accent-glow: rgba(245, 158, 11, 0.12);
+  --status-running: #10B981;
+  --status-warning: #F59E0B;
+  --status-danger: #EF4444;
+  --status-info: #3B82F6;
+  --agent-orchestrator: #FAFAFA;
+  --agent-maintenance: #F59E0B;
+  --agent-supply: #3B82F6;
+  --agent-recipe: #A78BFA;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+}
+
 body {
-  background-color: #0f172a;
-  color: #e2e8f0;
-  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  background:
+    radial-gradient(ellipse at top, rgba(245, 158, 11, 0.04) 0%, transparent 55%),
+    var(--bg-base);
+  color: var(--text-primary);
+  font-family: "Geist", system-ui, sans-serif;
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Live pulse dot */
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.pulse-dot {
+  animation: live-pulse 2s ease-in-out infinite;
+}
+
+/* Blinking caret for streaming text */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.stream-caret::after {
+  content: "▋";
+  animation: blink 1s step-start infinite;
+  color: var(--accent);
+  margin-left: 1px;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* Number tabular figures */
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* Fade in for cards */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-up {
+  animation: fade-up 0.2s ease-out forwards;
 }

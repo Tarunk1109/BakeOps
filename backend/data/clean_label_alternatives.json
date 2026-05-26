@@ -1,0 +1,180 @@
+{
+  "substitutions": [
+    {
+      "synthetic": "calcium propionate",
+      "function": "mold inhibitor / preservative",
+      "concern": "synthetic chemical preservative, linked to behavioral issues in children",
+      "natural_replacement": "fermented wheat flour (sourdough ferment)",
+      "rationale": "Organic acids from fermentation (lactic, acetic) provide natural mold inhibition",
+      "cost_delta_pct": 3.2,
+      "shelf_life_impact_days": -2,
+      "texture_impact": "slight tang, negligible",
+      "cfia_clean_label": true
+    },
+    {
+      "synthetic": "sodium benzoate",
+      "function": "preservative",
+      "concern": "can form benzene with ascorbic acid; synthetic preservative",
+      "natural_replacement": "rosemary extract (carnosic acid)",
+      "rationale": "Natural antioxidant with proven antimicrobial properties",
+      "cost_delta_pct": 4.1,
+      "shelf_life_impact_days": -1,
+      "texture_impact": "none",
+      "cfia_clean_label": true
+    },
+    {
+      "synthetic": "mono- and diglycerides",
+      "function": "emulsifier",
+      "concern": "highly processed, derived from hydrogenated fats",
+      "natural_replacement": "sunflower lecithin",
+      "rationale": "Plant-derived natural emulsifier with comparable function at similar usage levels",
+      "cost_delta_pct": 1.8,
+      "shelf_life_impact_days": 0,
+      "texture_impact": "minimal",
+      "cfia_clean_label": true
+    },
+    {
+      "synthetic": "polysorbate 80",
+      "function": "emulsifier / stabilizer",
+      "concern": "synthetic surfactant, gut microbiome concerns in studies",
+      "natural_replacement": "egg yolk lecithin or sunflower lecithin",
+      "rationale": "Natural lecithins provide equivalent emulsification without synthetic processing",
+      "cost_delta_pct": 2.5,
+      "shelf_life_impact_days": 0,
+      "texture_impact": "none",
+      "cfia_clean_label": true
+    },
+    {
+      "synthetic": "DATEM (diacetyl tartaric acid esters of mono- and diglycerides)",
+      "function": "dough strengthener / volume improver",
+      "concern": "highly processed multi-step chemical modification",
+      "natural_replacement": "ascorbic acid (vitamin C) + vital wheat gluten",
+      "rationale": "Ascorbic acid acts as a natural dough oxidizer; gluten improves structure",
+      "cost_delta_pct": 0.8,
+      "shelf_life_impact_days": 0,
+      "texture_impact": "slightly chewier crust",
+      "cfia_clean_label": true
+    },
+    {
+      "synthetic": "sodium stearoyl lactylate (SSL)",
+      "function": "dough conditioner / softener",
+      "concern": "chemically synthesized; though generally recognized as safe",
+      "natural_replacement": "fermented dairy (yogurt) or cultured whey",
+      "rationale": "Lactic acid bacteria produce natural SSL-like compounds that condition dough",
+      "cost_delta_pct": 1.5,
+      "shelf_life_impact_days": -1,
+      "texture_impact": "slight tang, soft crumb",
+      "cfia_clean_label": true
+    },
+    {
+      "synthetic": "azodicarbonamide (ADA)",
+      "function": "flour bleaching agent / dough improver",
+      "concern": "banned in EU and Australia; WHO flagged as possible carcinogen",
+      "natural_replacement": "unbleached flour + longer fermentation time",
+      "rationale": "Extended fermentation naturally develops gluten structure without chemical additives",
+      "cost_delta_pct": -0.5,
+      "shelf_life_impact_days": 0,
+      "texture_impact": "slightly denser, better flavor",
+      "cfia_clean_label": true
+    },
+    {
+      "synthetic": "potassium bromate",
+      "function": "flour strengthener",
+      "concern": "classified as possibly carcinogenic to humans (Group 2B); banned in most countries",
+      "natural_replacement": "ascorbic acid (vitamin C) 10-15 ppm",
+      "rationale": "Ascorbic acid oxidizes flour similarly without carcinogenic risk",
+      "cost_delta_pct": 0.2,
+      "shelf_life_impact_days": 0,
+      "texture_impact": "equivalent volume and crumb structure",
+      "cfia_clean_label": true
+    },
+    {
+      "synthetic": "high fructose corn syrup (HFCS)",
+      "function": "sweetener / humectant",
+      "concern": "highly processed, linked to metabolic disorders",
+      "natural_replacement": "honey, maple syrup, or coconut sugar",
+      "rationale": "Natural sweeteners with similar humectant properties and consumer-friendly labels",
+      "cost_delta_pct": 6.5,
+      "shelf_life_impact_days": -1,
+      "texture_impact": "slight color and flavor change",
+      "cfia_clean_label": true
+    },
+    {
+      "synthetic": "artificial caramel color (Class III/IV)",
+      "function": "color / browning",
+      "concern": "4-MEI byproduct flagged as potential carcinogen by IARC",
+      "natural_replacement": "roasted barley malt extract or caramelized cane sugar",
+      "rationale": "Natural Maillard reaction products achieve same color without chemical processing",
+      "cost_delta_pct": 1.2,
+      "shelf_life_impact_days": 0,
+      "texture_impact": "slight malt flavor",
+      "cfia_clean_label": true
+    },
+    {
+      "synthetic": "BHA / BHT (butylated hydroxyanisole/toluene)",
+      "function": "antioxidant / fat stabilizer",
+      "concern": "synthetic petroleum-derived antioxidants; BHA listed as possible carcinogen",
+      "natural_replacement": "mixed tocopherols (vitamin E) + rosemary extract",
+      "rationale": "Natural antioxidant system with superior consumer perception",
+      "cost_delta_pct": 3.8,
+      "shelf_life_impact_days": -3,
+      "texture_impact": "none",
+      "cfia_clean_label": true
+    },
+    {
+      "synthetic": "propylene glycol",
+      "function": "humectant / solvent",
+      "concern": "synthetic petroleum derivative; consumer perception issues",
+      "natural_replacement": "vegetable glycerin (glycerol)",
+      "rationale": "Plant-derived humectant with equivalent water-binding properties",
+      "cost_delta_pct": 2.1,
+      "shelf_life_impact_days": 0,
+      "texture_impact": "slight sweetness",
+      "cfia_clean_label": true
+    },
+    {
+      "synthetic": "modified starch (E1422, E1414)",
+      "function": "thickener / stabilizer",
+      "concern": "chemically modified; consumer preference for 'clean' starch",
+      "natural_replacement": "tapioca starch or arrowroot",
+      "rationale": "Naturally occurring starches with similar functionality for bakery applications",
+      "cost_delta_pct": 1.0,
+      "shelf_life_impact_days": -1,
+      "texture_impact": "slightly different mouthfeel",
+      "cfia_clean_label": true
+    },
+    {
+      "synthetic": "titanium dioxide (E171)",
+      "function": "whitening agent",
+      "concern": "EU banned 2022; potential DNA damage; nano-particle concerns",
+      "natural_replacement": "rice flour or calcium carbonate (food grade)",
+      "rationale": "Natural whitening without nanoparticle risks",
+      "cost_delta_pct": 0.5,
+      "shelf_life_impact_days": 0,
+      "texture_impact": "none",
+      "cfia_clean_label": true
+    },
+    {
+      "synthetic": "sodium aluminum phosphate (SALP)",
+      "function": "leavening acid",
+      "concern": "aluminum accumulation concerns; synthetic leavening",
+      "natural_replacement": "cream of tartar (potassium bitartrate) + citric acid",
+      "rationale": "Natural leavening acids derived from wine production and citrus",
+      "cost_delta_pct": 2.8,
+      "shelf_life_impact_days": 0,
+      "texture_impact": "equivalent rise, slight tartness",
+      "cfia_clean_label": true
+    },
+    {
+      "synthetic": "carrageenan",
+      "function": "gelling agent / thickener",
+      "concern": "degraded forms linked to inflammation; consumer backlash",
+      "natural_replacement": "agar-agar or psyllium husk",
+      "rationale": "Plant-derived gelling agents with equivalent texture properties",
+      "cost_delta_pct": 2.2,
+      "shelf_life_impact_days": 0,
+      "texture_impact": "slightly firmer set",
+      "cfia_clean_label": true
+    }
+  ]
+}

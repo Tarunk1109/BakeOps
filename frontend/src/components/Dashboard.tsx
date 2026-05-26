@@ -1,46 +1,84 @@
-import FactoryMap from "./FactoryMap";
-import AgentPanel from "./AgentPanel";
-import ScenarioInput from "./ScenarioInput";
-import FinalRecommendation from "./FinalRecommendation";
+import { useEffect, useState } from "react";
+import TopStrip from "./TopStrip";
+import AgentRoster from "./AgentRoster";
+import ProductionLineCard from "./ProductionLineCard";
+import MetricsBar from "./MetricsBar";
+import ActiveStream from "./ActiveStream";
+import CommandBar from "./CommandBar";
+import { subscribeTelemetry } from "../lib/sseClient";
+import { useAgentStore } from "../store/agentStore";
+
+interface Equipment {
+  id: string;
+  type: string;
+  health_score: number;
+  current_temp_c?: number;
+  target_temp_c?: number;
+  anomaly?: string;
+}
+
+interface Line {
+  id: string;
+  product: string;
+  status: string;
+  throughput_per_hour: number;
+  target_per_hour: number;
+  equipment: Equipment[];
+}
+
+interface FactoryState {
+  lines: Line[];
+}
 
 export default function Dashboard() {
+  const [factory, setFactory] = useState<FactoryState | null>(null);
+  const pushTelemetry = useAgentStore((s) => s.pushTelemetry);
+
+  useEffect(() => {
+    fetch("/api/factory_state")
+      .then((r) => r.json())
+      .then((d: FactoryState) => setFactory(d))
+      .catch(console.error);
+  }, []);
+
+  useEffect(() => {
+    const unsub = subscribeTelemetry(pushTelemetry);
+    return unsub;
+  }, [pushTelemetry]);
+
   return (
-    <div className="min-h-screen flex flex-col bg-slate-950 text-slate-200">
-      {/* Header */}
-      <header className="border-b border-slate-800 px-6 py-3 flex items-center gap-3">
-        <div className="text-xl font-bold tracking-tight text-white">
-          🏭 BakeOps <span className="text-violet-400">Command Center</span>
-        </div>
-        <div className="ml-auto text-xs text-slate-500 font-mono">
-          Multi-Agent AI · Real-Time Streaming
-        </div>
-      </header>
+    <div className="flex flex-col" style={{ height: "100vh", background: "var(--bg-base)" }}>
+      <TopStrip />
 
-      {/* Main content */}
+      {/* Main 3-column grid */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left: Factory Map */}
-        <aside className="w-72 border-r border-slate-800 p-4 overflow-y-auto flex-shrink-0">
-          <div className="text-xs uppercase tracking-widest text-slate-500 mb-3">Factory Map</div>
-          <FactoryMap />
-        </aside>
+        <AgentRoster />
 
-        {/* Center: Agent Panels */}
-        <main className="flex-1 p-4 flex flex-col gap-4 overflow-hidden">
-          <div className="grid grid-cols-2 gap-4 flex-1 overflow-hidden" style={{ minHeight: 0 }}>
-            <AgentPanel agentId="orchestrator" />
-            <AgentPanel agentId="maintenance_prophet" />
+        {/* Center: factory floor + metrics */}
+        <main className="flex-1 flex flex-col gap-3 p-4 overflow-hidden min-w-0">
+          {/* Production lines */}
+          <div className="flex-1 grid grid-cols-2 gap-3 min-h-0">
+            {factory
+              ? factory.lines.map((line) => (
+                  <ProductionLineCard key={line.id} line={line} />
+                ))
+              : Array.from({ length: 4 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="rounded-md animate-pulse"
+                    style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)" }}
+                  />
+                ))}
           </div>
 
-          {/* Final Recommendation */}
-          <FinalRecommendation />
-
-          {/* Scenario Input */}
-          <div className="border-t border-slate-800 pt-4">
-            <div className="text-xs uppercase tracking-widest text-slate-500 mb-2">Scenario Input</div>
-            <ScenarioInput />
-          </div>
+          {/* Metrics bar */}
+          <MetricsBar />
         </main>
+
+        <ActiveStream />
       </div>
+
+      <CommandBar />
     </div>
   );
 }
