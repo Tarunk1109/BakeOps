@@ -1,0 +1,55 @@
+{
+  "facility": "FGF Bakery — North Toronto Plant",
+  "lines": [
+    {
+      "id": "line_1",
+      "product": "Naan",
+      "status": "running",
+      "throughput_per_hour": 4200,
+      "target_per_hour": 4500,
+      "equipment": [
+        {"id": "oven_1a", "type": "tunnel_oven", "current_temp_c": 285, "target_temp_c": 290, "health_score": 0.78},
+        {"id": "mixer_1a", "type": "dough_mixer", "vibration_level": "normal", "health_score": 0.92},
+        {"id": "conveyor_1a", "type": "conveyor", "speed_mps": 0.42, "health_score": 0.88}
+      ]
+    },
+    {
+      "id": "line_2",
+      "product": "Croissants",
+      "status": "running",
+      "throughput_per_hour": 1800,
+      "target_per_hour": 2000,
+      "equipment": [
+        {"id": "oven_2a", "type": "convection_oven", "current_temp_c": 195, "target_temp_c": 200, "health_score": 0.95},
+        {"id": "sheeter_2a", "type": "dough_sheeter", "health_score": 0.83}
+      ]
+    },
+    {
+      "id": "line_3",
+      "product": "Muffins",
+      "status": "running",
+      "throughput_per_hour": 3000,
+      "target_per_hour": 3200,
+      "equipment": [
+        {"id": "oven_3a", "type": "rack_oven", "current_temp_c": 175, "target_temp_c": 180, "health_score": 0.65, "anomaly": "heating_element_degradation_detected"},
+        {"id": "depositor_3a", "type": "batter_depositor", "health_score": 0.90}
+      ]
+    },
+    {
+      "id": "line_4",
+      "product": "Sourdough Loaves",
+      "status": "running",
+      "throughput_per_hour": 850,
+      "target_per_hour": 900,
+      "equipment": [
+        {"id": "oven_4a", "type": "stone_deck_oven", "current_temp_c": 235, "target_temp_c": 240, "health_score": 0.88}
+      ]
+    }
+  ],
+  "production_cost_per_hour_usd": {
+    "line_1": 1200,
+    "line_2": 2100,
+    "line_3": 950,
+    "line_4": 1800
+  }
+}
