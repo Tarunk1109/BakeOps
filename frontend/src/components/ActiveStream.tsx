@@ -519,11 +519,27 @@ export default function ActiveStream() {
   const isRunning    = useAgentStore((s) => s.isRunning);
   const runCount     = useAgentStore((s) => s.runCount);
   const scrollRef    = useRef<HTMLDivElement>(null);
+  const finalCardRef = useRef<HTMLDivElement>(null);
 
+  // While agents are streaming: chase the bottom so new tokens are visible
   useEffect(() => {
+    if (!isRunning) return;
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [entries, finalRec, isRunning]);
+  }, [entries, isRunning]);
+
+  // When recommendation arrives: scroll to the TOP of the FinalCard so the
+  // user can read from the beginning and scroll down through it naturally.
+  useEffect(() => {
+    if (!finalRec || isRunning) return;
+    const id = setTimeout(() => {
+      const card = finalCardRef.current;
+      const container = scrollRef.current;
+      if (!card || !container) return;
+      container.scrollTo({ top: card.offsetTop - 12, behavior: "smooth" });
+    }, 80);
+    return () => clearTimeout(id);
+  }, [finalRec, isRunning]);
 
   const isEmpty = !isRunning && entries.length === 0 && !finalRec;
 
@@ -580,7 +596,9 @@ export default function ActiveStream() {
 
         {finalRec && !isRunning && (
           <>
-            <FinalCard rec={finalRec} runCount={runCount} />
+            <div ref={finalCardRef}>
+              <FinalCard rec={finalRec} runCount={runCount} />
+            </div>
             <SpeedComparison />
           </>
         )}
