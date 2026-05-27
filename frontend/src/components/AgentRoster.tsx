@@ -1,3 +1,4 @@
+import { useShallow } from "zustand/react/shallow";
 import { useAgentStore } from "../store/agentStore";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -8,7 +9,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export default function AgentRoster() {
-  const agents = useAgentStore((s) => Object.values(s.agents));
+  const agents = useAgentStore(useShallow((s) => Object.values(s.agents)));
 
   return (
     <aside

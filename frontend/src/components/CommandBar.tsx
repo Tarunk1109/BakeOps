@@ -1,5 +1,5 @@
-import { useState, useRef } from "react";
-import { Send, Paperclip, ChevronRight } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Send, Paperclip, ChevronDown } from "lucide-react";
 import { triggerScenario, triggerWithImage } from "../lib/sseClient";
 import { useAgentStore } from "../store/agentStore";
 import type { BakeOpsEvent } from "../lib/events";
@@ -8,20 +8,31 @@ const PRESETS = [
   {
     id: "SCN-1",
     label: "SCN-1",
-    title: "Oven Degradation",
-    text: "Line 3 oven temperature has dropped to 175°C — target is 180°C. Health score 0.65. Sensor reports heating element degradation. Assess failure risk and recommend action.",
+    title: "Tunnel Oven Anomaly",
+    short: "Line 03 · Stonefire Naan",
+    text: "Tunnel oven on Line 03 (Stonefire naan production) showing thermal sensor drift. Heating element health score dropped from 0.92 to 0.61 over the past 4 hours. Current zone temperature 285°C, target 290°C. Peak production window begins in 6 hours. Costco Ontario delivery scheduled at 0500.",
   },
   {
     id: "SCN-2",
     label: "SCN-2",
-    title: "Wheat Shortage",
-    text: "Major wheat supplier facility fire reported in Saskatchewan. We source Grade A bread flour from that region. Current inventory is approximately 4 days. Assess supply chain risk and identify alternatives.",
+    title: "Yeast Supplier Cut",
+    short: "Lallemand · 35% Allocation",
+    text: "Lallemand Inc. (commercial yeast supplier) issued emergency notice: 35% allocation reduction effective immediately due to fermentation facility incident at their Montreal plant. Currently 4 days of yeast inventory across North York and Mississauga facilities. Croissant, sourdough, and artisan loaf lines depend on this supplier. Decision required within 12 hours.",
   },
   {
     id: "SCN-3",
     label: "SCN-3",
-    title: "Clean Label",
-    text: "Analyze the uploaded croissant product label and reformulate all synthetic ingredients for clean-label CFIA compliance.",
+    title: "Costco Clean Label",
+    short: "Croissant · Q3 2026 Deadline",
+    text: "Costco Canada has issued a clean label compliance request: remove calcium propionate and mono- and diglycerides from all FGF-supplied croissant SKUs by Q3 2026. Affects 6 product lines accounting for $12.4M annual revenue. Reformulation required while maintaining 21-day shelf life and existing texture profile. Provide reformulation analysis.",
+    upload: true,
+  },
+  {
+    id: "SCN-4",
+    label: "SCN-4",
+    title: "Stonefire Recall Risk",
+    short: "West Coast · Mold Reports",
+    text: "Customer service log: 7 retailers reporting premature mold growth on Stonefire naan products distributed through West Coast warehouse. Shelf life trending 13.4 days versus 18-day commitment. Past 48 hours: 142 customer complaints. Cross-functional investigation required.",
   },
 ];
 
@@ -47,24 +58,33 @@ function handleEvent(event: BakeOpsEvent) {
 }
 
 export default function CommandBar() {
-  const [text, setText] = useState("");
+  const [text, setText]               = useState("");
   const [activePreset, setActivePreset] = useState<string | null>(null);
-  const [showUpload, setShowUpload] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const store = useAgentStore();
+  const [showUpload, setShowUpload]    = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const fileRef     = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const store       = useAgentStore();
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   const submit = (scenario: string, file?: File) => {
     if (!scenario.trim() || store.isRunning) return;
     store.reset();
     store.setRunning(true);
-    store.setScenarioName(scenario.slice(0, 50) + (scenario.length > 50 ? "…" : ""));
-
-    const onError = (err: Error) => {
-      console.error(err);
-      store.setRunning(false);
-    };
-    const onDone = () => store.setRunning(false);
-
+    store.setScenarioName(scenario.slice(0, 60) + (scenario.length > 60 ? "…" : ""));
+    store.setScenarioStartTime(Date.now());
+    const onError = (err: Error) => { console.error(err); store.setRunning(false); };
+    const onDone  = () => store.setRunning(false);
     if (file) {
       triggerWithImage(scenario, file, handleEvent, onDone, onError);
     } else {
@@ -75,107 +95,146 @@ export default function CommandBar() {
   const selectPreset = (preset: (typeof PRESETS)[0]) => {
     setActivePreset(preset.id);
     setText(preset.text);
-    setShowUpload(preset.id === "SCN-3");
+    setShowUpload(!!preset.upload);
+    setShowDropdown(false);
   };
 
   const handleFileSubmit = () => {
     const file = fileRef.current?.files?.[0];
-    if (showUpload && file) {
-      submit(text, file);
-    } else {
-      submit(text);
-    }
+    if (showUpload && file) submit(text, file);
+    else submit(text);
   };
 
   return (
     <div
-      className="border-t flex items-center px-4 gap-3 shrink-0"
-      style={{ height: 56, borderColor: "var(--border-default)", background: "var(--bg-base)" }}
+      className="flex items-center px-6 gap-4 shrink-0 relative"
+      style={{
+        height: 64,
+        background: "var(--bg-paper-warm)",
+        borderTop: "1px solid var(--border-hairline)",
+      }}
     >
-      {/* Prompt character */}
-      <ChevronRight size={14} strokeWidth={2} style={{ color: "var(--accent)", flexShrink: 0 }} />
+      {/* ⌘ prompt */}
+      <span className="font-mono" style={{ fontSize: 14, color: "var(--ink-muted)", flexShrink: 0 }}>⌘</span>
 
       {/* Input */}
       <input
         type="text"
-        className="flex-1 bg-transparent border-none outline-none font-mono text-[13px] placeholder:text-[var(--text-muted)]"
-        style={{ color: "var(--text-primary)", caretColor: "var(--accent)" }}
-        placeholder="Trigger scenario or describe a factory event..."
+        className="flex-1 bg-transparent border-none outline-none font-sans"
+        style={{
+          fontSize: 15,
+          color: "var(--ink-primary)",
+          caretColor: "var(--accent)",
+        }}
+        placeholder="Trigger scenario or describe a factory event…"
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            handleFileSubmit();
-          }
+          if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleFileSubmit(); }
         }}
         disabled={store.isRunning}
       />
 
-      {/* File upload (for SCN-3) */}
-      {showUpload && (
-        <label
-          className="flex items-center gap-1.5 px-2 py-1 rounded-sm cursor-pointer"
-          style={{
-            border: "1px solid var(--border-default)",
-            color: "var(--text-tertiary)",
-            background: "var(--bg-surface)",
-          }}
-          title="Upload product label image"
-        >
-          <Paperclip size={12} strokeWidth={1.5} />
-          <span className="font-mono text-[10px]">
-            {fileRef.current?.files?.[0]?.name.slice(0, 16) ?? "Upload label"}
-          </span>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={() => {}}
-          />
-        </label>
-      )}
-
-      {/* Preset buttons */}
-      <div className="flex gap-1.5">
-        {PRESETS.map((p) => (
-          <button
-            key={p.id}
-            onClick={() => selectPreset(p)}
-            disabled={store.isRunning}
-            title={p.title}
-            className="px-2 py-1 rounded-sm font-mono text-[10px] uppercase transition-colors"
+      {/* Right controls */}
+      <div className="flex items-center gap-2 shrink-0">
+        {/* Upload (SCN-3) */}
+        {showUpload && (
+          <label
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded cursor-pointer font-sans"
             style={{
-              border: `1px solid ${activePreset === p.id ? "var(--accent)" : "var(--border-default)"}`,
-              color: activePreset === p.id ? "var(--accent)" : "var(--text-muted)",
-              background: activePreset === p.id ? "var(--accent-dim)" : "transparent",
+              fontSize: 13,
+              border: "1px solid var(--border-soft)",
+              color: "var(--ink-tertiary)",
+              background: "var(--bg-paper)",
+            }}
+            title="Upload product label image"
+          >
+            <Paperclip size={12} strokeWidth={1.5} />
+            {fileRef.current?.files?.[0]?.name.slice(0, 14) ?? "Upload Label"}
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={() => {}} />
+          </label>
+        )}
+
+        {/* Scenario dropdown */}
+        <div ref={dropdownRef} className="relative">
+          <button
+            onClick={() => setShowDropdown((s) => !s)}
+            disabled={store.isRunning}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded font-mono"
+            style={{
+              fontSize: 11,
+              border: "1px solid var(--border-soft)",
+              color: activePreset ? "var(--accent)" : "var(--ink-tertiary)",
+              background: activePreset ? "var(--accent-soft)" : "var(--bg-paper)",
             }}
           >
-            {p.label}
+            {activePreset ?? "SCN"}
+            <ChevronDown size={10} strokeWidth={2} />
           </button>
-        ))}
+
+          {showDropdown && (
+            <div
+              className="absolute bottom-full right-0 mb-2 rounded-lg overflow-hidden"
+              style={{
+                width: 260,
+                background: "var(--bg-paper)",
+                border: "1px solid var(--border-soft)",
+                boxShadow: "0 8px 24px rgba(14,14,16,0.12)",
+                zIndex: 100,
+              }}
+            >
+              {PRESETS.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => selectPreset(p)}
+                  className="w-full text-left px-4 py-3 flex flex-col gap-0.5"
+                  style={{
+                    background: activePreset === p.id ? "var(--accent-soft)" : "transparent",
+                    borderBottom: "1px solid var(--border-hairline)",
+                  }}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono uppercase tracking-wider" style={{ fontSize: 9, color: "var(--accent)" }}>
+                      {p.label}
+                    </span>
+                    <span className="font-mono" style={{ fontSize: 9, color: "var(--ink-muted)" }}>{p.short}</span>
+                  </div>
+                  <span className="font-sans font-medium" style={{ fontSize: 13, color: "var(--ink-primary)" }}>
+                    {p.title}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Submit */}
+        <button
+          onClick={handleFileSubmit}
+          disabled={store.isRunning || !text.trim()}
+          className="flex items-center gap-1.5 px-4 py-1.5 rounded font-sans font-medium"
+          style={{
+            fontSize: 13,
+            background: store.isRunning || !text.trim() ? "var(--border-soft)" : "var(--accent)",
+            color: store.isRunning || !text.trim() ? "var(--ink-muted)" : "#FFFFFF",
+            transition: "background 0.15s",
+          }}
+        >
+          {store.isRunning ? (
+            <span className="pulse-dot font-mono" style={{ fontSize: 13 }}>···</span>
+          ) : (
+            <><Send size={12} strokeWidth={2} />Send</>
+          )}
+        </button>
       </div>
 
-      {/* Submit */}
-      <button
-        onClick={handleFileSubmit}
-        disabled={store.isRunning || !text.trim()}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm font-mono text-[11px] font-medium transition-colors"
-        style={{
-          background: store.isRunning || !text.trim() ? "var(--bg-elevated)" : "var(--accent)",
-          color: store.isRunning || !text.trim() ? "var(--text-muted)" : "#0A0A0B",
-        }}
+      {/* Hint */}
+      <span
+        className="absolute right-6 font-mono"
+        style={{ fontSize: 9, color: "var(--ink-muted)", bottom: 7, pointerEvents: "none" }}
       >
-        {store.isRunning ? (
-          <span className="pulse-dot">···</span>
-        ) : (
-          <>
-            <Send size={11} strokeWidth={2} />
-            Submit
-          </>
-        )}
-      </button>
+        Tap NFC card or pick a preset above
+      </span>
     </div>
   );
 }

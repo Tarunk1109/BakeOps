@@ -79,3 +79,21 @@ export function subscribeTelemetry(onData: (data: TelemetryData) => void): () =>
   };
   return () => es.close();
 }
+
+export function subscribeToTriggers(
+  onTrigger: (scenarioId: string, scenarioText: string) => void
+): () => void {
+  const es = new EventSource("/api/events");
+  es.onmessage = (e) => {
+    try {
+      const event = JSON.parse(e.data) as BakeOpsEvent;
+      if (event.event_type === "scenario_trigger") {
+        onTrigger(
+          event.data.scenario_id as string,
+          event.data.scenario_text as string
+        );
+      }
+    } catch { /* skip */ }
+  };
+  return () => es.close();
+}

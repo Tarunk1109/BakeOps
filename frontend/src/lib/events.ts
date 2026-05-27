@@ -7,6 +7,7 @@ export type EventType =
   | "orchestrator_routing"
   | "final_recommendation"
   | "telemetry_update"
+  | "scenario_trigger"
   | "stream_done";
 
 export interface BakeOpsEvent {
