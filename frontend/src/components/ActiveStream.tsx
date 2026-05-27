@@ -72,19 +72,24 @@ function getHints(scenario: string): string[] {
   return HINTS.default;
 }
 
-// ─── Markdown renderer ────────────────────────────────────────────────────────
-function inlineMd(text: string): React.ReactNode {
+// ─── Markdown renderer (supports dark + light modes) ─────────────────────────
+function inlineMd(text: string, light?: boolean): React.ReactNode {
+  const boldColor = light ? "#0E0E10" : "var(--paper-primary)";
   const parts = text.split(/(\*\*[^*\n]+\*\*)/g);
   return parts.map((p, i) =>
     p.startsWith("**") && p.endsWith("**") ? (
-      <strong key={i} style={{ color: "var(--paper-primary)", fontWeight: 600 }}>
+      <strong key={i} style={{ color: boldColor, fontWeight: 600 }}>
         {p.slice(2, -2)}
       </strong>
     ) : p
   );
 }
 
-function renderMarkdown(text: string): React.ReactNode {
+function renderMarkdown(text: string, light?: boolean): React.ReactNode {
+  const textColor    = light ? "#46464A"  : "var(--paper-secondary)";
+  const bulletColor  = light ? "#B45309"  : "var(--agent-maintenance-dark)";
+  const headerColor  = light ? "#B45309"  : "var(--agent-maintenance-dark)";
+
   const lines = text.split("\n");
   const out: React.ReactNode[] = [];
   let key = 0, i = 0;
@@ -102,9 +107,9 @@ function renderMarkdown(text: string): React.ReactNode {
         <ul key={key++} style={{ margin: "4px 0", padding: 0, listStyle: "none" }}>
           {items.map((item, j) => (
             <li key={j} style={{ display: "flex", gap: 8, marginBottom: 4, alignItems: "flex-start" }}>
-              <span style={{ color: "var(--agent-maintenance-dark)", flexShrink: 0, marginTop: 1 }}>·</span>
-              <span className="font-sans" style={{ fontSize: 13, lineHeight: 1.6, color: "var(--paper-secondary)" }}>
-                {inlineMd(item)}
+              <span style={{ color: bulletColor, flexShrink: 0, marginTop: 1 }}>·</span>
+              <span className="font-sans" style={{ fontSize: 13, lineHeight: 1.6, color: textColor }}>
+                {inlineMd(item, light)}
               </span>
             </li>
           ))}
@@ -115,15 +120,15 @@ function renderMarkdown(text: string): React.ReactNode {
     if (t.startsWith("##")) {
       out.push(
         <div key={key++} className="font-mono uppercase tracking-[0.18em]"
-          style={{ fontSize: 9, color: "var(--agent-maintenance-dark)", marginTop: 10, marginBottom: 4 }}>
+          style={{ fontSize: 9, color: headerColor, marginTop: 10, marginBottom: 4 }}>
           {t.replace(/^#+\s*/, "")}
         </div>
       );
       i++; continue;
     }
     out.push(
-      <p key={key++} className="font-sans" style={{ fontSize: 13, lineHeight: 1.6, color: "var(--paper-secondary)", margin: "2px 0" }}>
-        {inlineMd(t)}
+      <p key={key++} className="font-sans" style={{ fontSize: 13, lineHeight: 1.6, color: textColor, margin: "2px 0" }}>
+        {inlineMd(t, light)}
       </p>
     );
     i++;
@@ -345,51 +350,61 @@ function FinalCard({ rec, runCount }: { rec: Record<string, unknown>; runCount: 
   // Generate reference number
   const refNum = `BO-${Date.now().toString(36).toUpperCase().slice(-6)}`;
 
+  // Print-memo card on warm paper background
   return (
     <div
       className="rounded-lg overflow-hidden rec-arrive"
       style={{
-        background: "rgba(245,158,11,0.04)",
-        border: "1px solid rgba(245,158,11,0.18)",
-        borderLeft: "3px solid var(--agent-maintenance-dark)",
+        background: "#F8F6F0",
+        borderTop: "2px solid #B45309",
+        border: "1px solid rgba(180,83,9,0.18)",
+        borderTopWidth: 2,
+        boxShadow: "0 4px 24px rgba(14,14,16,0.18)",
       }}
     >
-      {/* Header */}
-      <div className="px-5 py-3 flex items-center gap-2"
-        style={{ borderBottom: "1px solid rgba(245,158,11,0.1)" }}>
-        <div className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--agent-maintenance-dark)" }} />
-        <span className="font-mono uppercase tracking-[0.2em]" style={{ fontSize: 9, color: "var(--agent-maintenance-dark)" }}>
-          Operational Recommendation
-        </span>
-        <span className="font-mono ml-2 opacity-40" style={{ fontSize: 9, color: "var(--agent-maintenance-dark)" }}>
-          {refNum}
-        </span>
-
-        {/* Voice toggle */}
-        <button
-          onClick={toggleVoice}
-          className="ml-auto flex items-center gap-1.5 px-2 py-1 rounded"
-          title={voiceEnabled ? "Mute voice" : "Enable voice readout"}
-          style={{
-            background: voiceEnabled ? "rgba(245,158,11,0.12)" : "transparent",
-            border: `1px solid ${voiceEnabled ? "rgba(245,158,11,0.3)" : "rgba(255,255,255,0.08)"}`,
-            cursor: "pointer",
-          }}
-        >
-          {voiceEnabled
-            ? <Volume2 size={10} style={{ color: "var(--agent-maintenance-dark)" }} />
-            : <VolumeX  size={10} style={{ color: "var(--paper-tertiary)" }} />}
-          <span className="font-mono" style={{ fontSize: 8, color: voiceEnabled ? "var(--agent-maintenance-dark)" : "var(--paper-tertiary)" }}>
-            {voiceEnabled ? "Voice on" : "Voice off"}
+      {/* Memo header */}
+      <div className="px-5 pt-4 pb-3 flex items-start justify-between"
+        style={{ borderBottom: "1px solid rgba(180,83,9,0.12)" }}>
+        <div className="flex flex-col gap-0.5">
+          <span className="font-mono uppercase tracking-[0.22em]"
+            style={{ fontSize: 8, color: "#B45309" }}>
+            BakeOps Command Center
           </span>
-        </button>
+          <span className="font-display font-medium"
+            style={{ fontSize: 16, color: "#0E0E10", letterSpacing: "-0.01em" }}>
+            Operational Recommendation
+          </span>
+        </div>
+        <div className="flex flex-col items-end gap-1.5">
+          <span className="font-mono" style={{ fontSize: 8, color: "#76767C" }}>
+            REF: {refNum}
+          </span>
+          {/* Voice toggle */}
+          <button
+            onClick={toggleVoice}
+            className="flex items-center gap-1.5 px-2 py-1 rounded"
+            title={voiceEnabled ? "Mute voice" : "Enable voice readout"}
+            style={{
+              background: voiceEnabled ? "rgba(180,83,9,0.08)" : "transparent",
+              border: `1px solid ${voiceEnabled ? "rgba(180,83,9,0.22)" : "rgba(14,14,16,0.12)"}`,
+              cursor: "pointer",
+            }}
+          >
+            {voiceEnabled
+              ? <Volume2 size={10} style={{ color: "#B45309" }} />
+              : <VolumeX  size={10} style={{ color: "#76767C" }} />}
+            <span className="font-mono" style={{ fontSize: 8, color: voiceEnabled ? "#B45309" : "#76767C" }}>
+              {voiceEnabled ? "Voice on" : "Muted"}
+            </span>
+          </button>
+        </div>
       </div>
 
       <div className="p-5 flex flex-col gap-4">
-        {/* Summary */}
+        {/* Summary — Fraunces serif body, light mode */}
         {summary && (
-          <div className="pb-4" style={{ borderBottom: "1px solid var(--border-ink-soft)" }}>
-            {renderMarkdown(summary)}
+          <div className="pb-4" style={{ borderBottom: "1px solid rgba(14,14,16,0.08)" }}>
+            {renderMarkdown(summary, true)}
           </div>
         )}
 
@@ -399,18 +414,18 @@ function FinalCard({ rec, runCount }: { rec: Record<string, unknown>; runCount: 
             {bigNumbers.map(({ value, unit, label, danger, purple }) => (
               <div key={label} className="flex-1 rounded-md p-3 min-w-[80px]"
                 style={{
-                  background: danger ? "rgba(185,28,28,0.08)" : "rgba(255,255,255,0.04)",
-                  border: `1px solid ${danger ? "rgba(185,28,28,0.18)" : "var(--border-ink)"}`,
+                  background: danger ? "rgba(185,28,28,0.06)" : "rgba(14,14,16,0.03)",
+                  border: `1px solid ${danger ? "rgba(185,28,28,0.16)" : "rgba(14,14,16,0.08)"}`,
                 }}>
                 <div className="font-display leading-none font-medium"
                   style={{
                     fontSize: value.length > 7 ? 15 : 24,
-                    color: danger ? "#F87171" : purple ? "var(--agent-recipe-dark)" : "var(--agent-supply-dark)",
+                    color: danger ? "#B91C1C" : purple ? "#6D28D9" : "#1D4ED8",
                   }}>
                   {value}
                   {unit && <span className="font-mono ml-0.5" style={{ fontSize: 10, opacity: 0.7 }}>{unit}</span>}
                 </div>
-                <div className="font-mono uppercase mt-1" style={{ fontSize: 9, color: "var(--paper-tertiary)" }}>{label}</div>
+                <div className="font-mono uppercase mt-1" style={{ fontSize: 9, color: "#76767C" }}>{label}</div>
               </div>
             ))}
           </div>
@@ -420,17 +435,21 @@ function FinalCard({ rec, runCount }: { rec: Record<string, unknown>; runCount: 
         {confidence !== null && (
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
-              <span className="font-mono uppercase tracking-wider" style={{ fontSize: 9, color: "var(--paper-tertiary)" }}>
+              <span className="font-mono uppercase tracking-wider" style={{ fontSize: 9, color: "#76767C" }}>
                 Confidence
               </span>
-              <span className="font-mono tabular" style={{ fontSize: 11, color: confidence >= 0.8 ? "#4ADE80" : "var(--agent-maintenance-dark)" }}>
+              <span className="font-mono tabular" style={{
+                fontSize: 11,
+                color: confidence >= 0.8 ? "#15803D" : "#B45309",
+                fontWeight: 600,
+              }}>
                 {Math.round(confidence * 100)}%
               </span>
             </div>
-            <div style={{ height: 3, background: "rgba(255,255,255,0.08)", borderRadius: 2 }}>
+            <div style={{ height: 3, background: "rgba(14,14,16,0.08)", borderRadius: 2 }}>
               <div style={{
                 width: `${confidence * 100}%`, height: "100%", borderRadius: 2,
-                background: confidence >= 0.8 ? "#4ADE80" : confidence >= 0.6 ? "var(--agent-maintenance-dark)" : "#F87171",
+                background: confidence >= 0.8 ? "#15803D" : confidence >= 0.6 ? "#B45309" : "#B91C1C",
                 transition: "width 0.8s ease",
               }} />
             </div>
@@ -445,27 +464,30 @@ function FinalCard({ rec, runCount }: { rec: Record<string, unknown>; runCount: 
             if (!text.trim()) return null;
             return (
               <div key={label} className="rounded px-3 py-2.5"
-                style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--border-ink-soft)" }}>
-                <div className="font-mono uppercase tracking-wider mb-1" style={{ fontSize: 9, color: "var(--paper-tertiary)" }}>
+                style={{ background: "rgba(14,14,16,0.03)", border: "1px solid rgba(14,14,16,0.07)" }}>
+                <div className="font-mono uppercase tracking-wider mb-1"
+                  style={{ fontSize: 9, color: "#76767C" }}>
                   {label}
                 </div>
-                <div>{renderMarkdown(text)}</div>
+                <div>{renderMarkdown(text, true)}</div>
               </div>
             );
           })}
         </div>
 
-        {/* Run statistics */}
-        <div className="flex items-center justify-between pt-3" style={{ borderTop: "1px solid var(--border-ink-soft)" }}>
-          <span className="font-mono uppercase tracking-wider" style={{ fontSize: 9, color: "var(--paper-tertiary)" }}>
-            Run Statistics
+        {/* Footer — "Signed by" */}
+        <div className="flex items-center justify-between pt-3"
+          style={{ borderTop: "1px solid rgba(180,83,9,0.14)" }}>
+          <span className="font-mono italic" style={{ fontSize: 10, color: "#76767C" }}>
+            Signed by BakeOps Orchestrator
+            {confidence !== null && ` · Confidence ${Math.round(confidence * 100)}%`}
           </span>
           <div className="flex items-center gap-3">
-            <span className="font-mono" style={{ fontSize: 9, color: "var(--paper-tertiary)" }}>
-              Run #{runCount} · {agentsResp} agent{agentsResp !== 1 ? "s" : ""} responded
+            <span className="font-mono" style={{ fontSize: 9, color: "#76767C" }}>
+              Run #{runCount} · {agentsResp} agent{agentsResp !== 1 ? "s" : ""}
             </span>
             <span className="font-mono px-1.5 py-0.5 rounded-sm"
-              style={{ fontSize: 9, color: "#4ADE80", background: "rgba(74,222,128,0.08)", border: "1px solid rgba(74,222,128,0.18)" }}>
+              style={{ fontSize: 9, color: "#15803D", background: "rgba(21,128,61,0.08)", border: "1px solid rgba(21,128,61,0.2)" }}>
               Variance: Low
             </span>
           </div>
