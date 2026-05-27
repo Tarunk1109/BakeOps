@@ -153,7 +153,7 @@ export default function Dashboard() {
             initial={{ opacity: 0, x: -16 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.35, delay: 0.1, ease: "easeOut" }}
-            style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}
+            style={{ minHeight: 0, overflow: "hidden" }}
           >
             <StaffRail />
           </motion.div>
@@ -203,7 +203,7 @@ export default function Dashboard() {
             initial={{ opacity: 0, x: 24 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.35, delay: 0.2, ease: "easeOut" }}
-            style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}
+            style={{ minHeight: 0, display: "flex", flexDirection: "column" }}
           >
             <ActiveStream />
           </motion.div>

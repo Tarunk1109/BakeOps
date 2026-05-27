@@ -159,7 +159,8 @@ export default function StaffRail() {
     <aside
       className="flex flex-col overflow-y-auto"
       style={{
-        width: 260,
+        flex: 1,
+        minHeight: 0,
         background: "var(--bg-canvas)",
         borderRight: "1px solid var(--border-hairline)",
       }}

@@ -531,7 +531,8 @@ export default function ActiveStream() {
     <div
       className="flex flex-col"
       style={{
-        width: 440,
+        flex: 1,
+        minHeight: 0,
         background: "var(--bg-ink)",
         borderLeft: "1px solid var(--border-hairline)",
       }}
