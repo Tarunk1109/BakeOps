@@ -25,38 +25,64 @@ function healthColor(score: number): string {
   return "var(--status-danger)";
 }
 
+function HealthDot({ score }: { score: number }) {
+  const color = healthColor(score);
+  const pct   = Math.round(score * 100);
+  const isGood = score >= 0.85;
+  return (
+    <div
+      className="flex items-center gap-1"
+      title={`Health: ${pct}%`}
+    >
+      <div
+        className={isGood ? "" : "pulse-dot"}
+        style={{ width: 5, height: 5, borderRadius: "50%", background: color, flexShrink: 0 }}
+      />
+      <span className="font-mono tabular" style={{ fontSize: 9, color }}>
+        {pct}%
+      </span>
+    </div>
+  );
+}
+
 function Sparkline({ history, color }: { history: number[]; color: string }) {
-  if (history.length < 2) return <svg width="100%" height="24" />;
-  const w = 160;
-  const h = 24;
-  const min = Math.min(...history);
-  const max = Math.max(...history);
+  if (history.length < 2) return <svg width="100%" height="20" />;
+  const w = 160, h = 20;
+  const min   = Math.min(...history);
+  const max   = Math.max(...history);
   const range = max - min || 1;
-  const pts = history.map((v, i) => {
+  const pts   = history.map((v, i) => {
     const x = (i / (history.length - 1)) * w;
     const y = h - 2 - ((v - min) / range) * (h - 4);
-    return `${x},${y}`;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
   });
-  const firstX = pts[0].split(",")[0];
-  const lastX  = pts[pts.length - 1].split(",")[0];
-  const fill   = `M ${pts[0]} L ${pts.slice(1).join(" L ")} L ${lastX},${h} L ${firstX},${h} Z`;
-  const gid    = `sg-${color.replace(/[^a-z0-9]/gi, "")}`;
+  const firstX  = pts[0].split(",")[0];
+  const lastX   = pts[pts.length - 1].split(",")[0];
+  const fill    = `M ${pts[0]} L ${pts.slice(1).join(" L ")} L ${lastX},${h} L ${firstX},${h} Z`;
+  const gid     = `sg-${Math.random().toString(36).slice(2, 6)}`;
   return (
     <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
       <defs>
         <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity={0.15} />
+          <stop offset="0%"   stopColor={color} stopOpacity={0.15} />
           <stop offset="100%" stopColor={color} stopOpacity={0} />
         </linearGradient>
       </defs>
       <path d={fill} fill={`url(#${gid})`} />
-      <polyline points={pts.join(" ")} fill="none" stroke={color} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
+      <polyline
+        points={pts.join(" ")}
+        fill="none"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
 
 export default function ProductionLineCard({ line }: { line: Line }) {
-  const liveMetrics = useAgentStore((s) => s.lineMetrics[line.id]);
+  const liveMetrics    = useAgentStore((s) => s.lineMetrics[line.id]);
   const liveThroughput = liveMetrics?.throughputPerHour ?? line.throughput_per_hour;
   const history        = liveMetrics?.history ?? [];
   const pct            = Math.round((liveThroughput / line.target_per_hour) * 100);
@@ -70,51 +96,50 @@ export default function ProductionLineCard({ line }: { line: Line }) {
     ? "var(--status-danger)"
     : "var(--status-running)";
 
+  const throughputColor =
+    pct >= 95 ? "var(--status-running)" :
+    pct >= 85 ? "var(--status-warning)" :
+    "var(--status-danger)";
+
   return (
     <div
-      className="bg-paper rounded-lg flex flex-col overflow-hidden"
+      className="rounded-xl flex flex-col overflow-hidden"
       style={{
-        border: `1px solid ${hasAnomaly ? "rgba(180,83,9,0.3)" : "var(--border-hairline)"}`,
+        background: "var(--bg-paper)",
+        border: `1px solid ${hasAnomaly ? "rgba(180,83,9,0.25)" : "var(--border-hairline)"}`,
         boxShadow: hasAnomaly ? "0 0 0 2px rgba(180,83,9,0.06)" : "none",
+        transition: "border-color 0.3s ease",
       }}
     >
       {/* Alert band */}
       {hasAnomaly && (
-        <div
-          className="h-0.5 w-full"
-          style={{ background: "var(--accent)" }}
-        />
+        <div className="h-0.5 w-full" style={{ background: "var(--accent)" }} />
       )}
 
-      <div className="p-5 flex flex-col gap-3 flex-1">
+      <div className="p-4 flex flex-col gap-3 flex-1">
         {/* Header */}
         <div className="flex items-start justify-between">
           <div>
-            <div
-              className="font-mono uppercase tracking-wider mb-1"
-              style={{ fontSize: 10, color: "var(--ink-muted)" }}
-            >
+            <div className="font-mono uppercase tracking-wider mb-0.5" style={{ fontSize: 9, color: "var(--ink-muted)" }}>
               {lineNum}
             </div>
-            <div
-              className="font-display font-medium leading-tight"
-              style={{ fontSize: 18, color: "var(--ink-primary)" }}
-            >
+            <div className="font-display font-medium leading-tight" style={{ fontSize: 16, color: "var(--ink-primary)", letterSpacing: "-0.01em" }}>
               {line.product}
             </div>
           </div>
+
           {hasAnomaly ? (
             <div
-              className="flex items-center gap-1 px-2 py-1 rounded"
-              style={{ background: "var(--status-warning-soft)", border: "1px solid rgba(180,83,9,0.2)" }}
+              className="flex items-center gap-1 px-2 py-1 rounded-md"
+              style={{ background: "var(--status-warning-soft)", border: "1px solid rgba(180,83,9,0.18)" }}
             >
-              <AlertTriangle size={10} style={{ color: "var(--accent)" }} strokeWidth={2} />
-              <span className="font-mono uppercase" style={{ fontSize: 9, color: "var(--accent)" }}>Alert</span>
+              <AlertTriangle size={9} style={{ color: "var(--accent)" }} strokeWidth={2} />
+              <span className="font-mono uppercase" style={{ fontSize: 8, color: "var(--accent)" }}>Alert</span>
             </div>
           ) : (
             <div className="flex items-center gap-1.5">
               <div className="w-1.5 h-1.5 rounded-full pulse-dot" style={{ background: "var(--status-running)" }} />
-              <span className="font-mono uppercase tracking-wider" style={{ fontSize: 10, color: "var(--status-running)" }}>
+              <span className="font-mono uppercase tracking-wider" style={{ fontSize: 9, color: "var(--status-running)" }}>
                 Running
               </span>
             </div>
@@ -123,61 +148,46 @@ export default function ProductionLineCard({ line }: { line: Line }) {
 
         {/* Throughput */}
         <div>
-          <div className="flex items-baseline gap-1.5">
-            <span
-              className="font-display tabular leading-none"
-              style={{ fontSize: 32, color: "var(--ink-primary)", fontWeight: 500, letterSpacing: "-0.02em" }}
-            >
+          <div className="flex items-baseline gap-1.5 mb-1.5">
+            <span className="font-display tabular leading-none font-medium" style={{ fontSize: 28, color: "var(--ink-primary)", letterSpacing: "-0.025em" }}>
               {liveThroughput.toLocaleString()}
             </span>
-            <span
-              className="font-mono uppercase tracking-wide"
-              style={{ fontSize: 10, color: "var(--ink-tertiary)" }}
-            >
+            <span className="font-mono" style={{ fontSize: 9, color: "var(--ink-tertiary)" }}>
               / {line.target_per_hour.toLocaleString()} tgt
             </span>
           </div>
-          <div className="flex items-center justify-between mt-1.5">
-            <div className="flex-1 h-0.5 rounded-full mr-3" style={{ background: "var(--border-soft)" }}>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 h-1 rounded-full" style={{ background: "var(--border-soft)" }}>
               <div
-                className="h-0.5 rounded-full"
+                className="h-1 rounded-full"
                 style={{
                   width: `${Math.min(pct, 100)}%`,
-                  background: pct >= 95 ? "var(--status-running)" : pct >= 85 ? "var(--status-warning)" : "var(--status-danger)",
+                  background: throughputColor,
                   transition: "width 0.5s ease",
                 }}
               />
             </div>
-            <span
-              className="font-mono tabular"
-              style={{
-                fontSize: 12,
-                fontWeight: 500,
-                color: pct >= 95 ? "var(--status-running)" : pct >= 85 ? "var(--status-warning)" : "var(--status-danger)",
-              }}
-            >
+            <span className="font-mono tabular" style={{ fontSize: 10, color: throughputColor, fontWeight: 600, minWidth: 32, textAlign: "right" }}>
               {pct}%
             </span>
           </div>
         </div>
 
-        {/* Equipment health mini-list */}
-        <div className="flex flex-col gap-1 pt-1" style={{ borderTop: "1px solid var(--border-hairline)" }}>
+        {/* Equipment */}
+        <div className="flex flex-col gap-1.5 pt-2" style={{ borderTop: "1px solid var(--border-hairline)" }}>
           {line.equipment.slice(0, 2).map((eq) => (
-            <div key={eq.id} className="flex items-center justify-between gap-2">
-              <span className="font-mono" style={{ fontSize: 9, color: "var(--ink-muted)", textTransform: "capitalize" }}>
+            <div key={eq.id} className="flex items-center justify-between">
+              <span className="font-mono" style={{ fontSize: 8.5, color: "var(--ink-muted)", textTransform: "capitalize" }}>
                 {eq.type.replace(/_/g, " ")}
               </span>
               <div className="flex items-center gap-2">
                 {eq.current_temp_c && (
                   <div className="flex items-center gap-0.5" style={{ color: "var(--ink-muted)" }}>
                     <Thermometer size={8} strokeWidth={1.5} />
-                    <span className="font-mono tabular" style={{ fontSize: 9 }}>{eq.current_temp_c}°</span>
+                    <span className="font-mono tabular" style={{ fontSize: 8.5 }}>{eq.current_temp_c}°</span>
                   </div>
                 )}
-                <span className="font-mono tabular" style={{ fontSize: 9, color: healthColor(eq.health_score) }}>
-                  {Math.round(eq.health_score * 100)}%
-                </span>
+                <HealthDot score={eq.health_score} />
               </div>
             </div>
           ))}
@@ -185,7 +195,7 @@ export default function ProductionLineCard({ line }: { line: Line }) {
       </div>
 
       {/* Sparkline footer */}
-      <div style={{ height: 24, marginTop: "auto" }}>
+      <div style={{ height: 20 }}>
         <Sparkline history={history} color={sparkColor} />
       </div>
     </div>

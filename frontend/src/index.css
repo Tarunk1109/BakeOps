@@ -2,6 +2,72 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Savings vault rotating border ───────────────────────────────────────────
+   @property lets us animate a CSS custom property used inside conic-gradient.
+   Supported in Chrome 85+, Safari 16.4+, Edge 85+ — all fine for this demo. */
+@property --vault-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes vault-spin {
+  to { --vault-angle: 360deg; }
+}
+
+.savings-vault-border {
+  background: conic-gradient(
+    from var(--vault-angle),
+    #14532D 0%,
+    #15803D 18%,
+    #4ADE80 35%,
+    #86EFAC 50%,
+    #4ADE80 65%,
+    #15803D 82%,
+    #14532D 100%
+  );
+  animation: vault-spin 5s linear infinite;
+  padding: 2px;
+  border-radius: 18px;
+}
+
+/* ── Digit character roll-in ──────────────────────────────────────────────── */
+@keyframes digit-land {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.88);
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+.digit-char {
+  display: inline-block;
+  animation: digit-land 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ── Number flash when count finishes ────────────────────────────────────── */
+@keyframes number-flash {
+  0%   { text-shadow: 0 0 0px #4ADE80; }
+  40%  { text-shadow: 0 0 28px #4ADE80, 0 0 60px rgba(74,222,128,0.4); }
+  100% { text-shadow: 0 0 0px #4ADE80; }
+}
+.number-flash { animation: number-flash 0.8s ease-out forwards; }
+
+/* ── Stacked risk bar fill ────────────────────────────────────────────────── */
+@keyframes bar-grow-left {
+  from { width: 0%; }
+}
+.bar-grow-left { animation: bar-grow-left 1.1s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+
+@keyframes bar-grow-right {
+  from { width: 0%; }
+}
+.bar-grow-right { animation: bar-grow-right 1.1s cubic-bezier(0.22, 1, 0.36, 1) 0.18s forwards; }
+
 :root {
   --bg-canvas:     #FAFAF7;
   --bg-paper:      #FFFFFF;
@@ -47,6 +113,11 @@
   --agent-maintenance-dark:  #F59E0B;
   --agent-supply-dark:       #60A5FA;
   --agent-recipe-dark:       #A78BFA;
+
+  /* Transitions */
+  --t-fast:   0.12s ease;
+  --t-normal: 0.22s ease;
+  --t-slow:   0.38s ease;
 }
 
 * { box-sizing: border-box; }
@@ -58,7 +129,7 @@ html, body, #root {
 
 body {
   background:
-    radial-gradient(ellipse 800px 400px at 50% 0%, rgba(180, 83, 9, 0.04), transparent 60%),
+    radial-gradient(ellipse 900px 500px at 50% -40px, rgba(180, 83, 9, 0.05), transparent 65%),
     var(--bg-canvas);
   color: var(--ink-primary);
   font-family: "Inter Tight", system-ui, sans-serif;
@@ -72,14 +143,14 @@ body {
   font-feature-settings: 'tnum';
 }
 
-/* Status dot */
+/* ── Status dot ──────────────────────────────────────────────────────────── */
 @keyframes live-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50%       { opacity: 0.7; transform: scale(1.2); }
+  0%, 100% { opacity: 1;   transform: scale(1);   }
+  50%       { opacity: 0.6; transform: scale(1.25); }
 }
 .pulse-dot { animation: live-pulse 2s ease-in-out infinite; }
 
-/* Streaming cursor */
+/* ── Streaming cursor ─────────────────────────────────────────────────────── */
 @keyframes blink-bar {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0; }
@@ -87,42 +158,104 @@ body {
 .stream-cursor::after {
   content: "│";
   font-weight: 300;
-  animation: blink-bar 1.2s step-start infinite;
+  animation: blink-bar 1.1s step-start infinite;
   color: var(--accent);
   margin-left: 1px;
 }
 
-/* Card entrance */
+/* ── Card entrance ────────────────────────────────────────────────────────── */
 @keyframes fade-up {
-  from { opacity: 0; transform: translateY(5px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-.fade-up { animation: fade-up 0.2s ease-out forwards; }
-
-/* Recommendation arrival — translateY only, no scale (scale creates stacking context that breaks scroll) */
-@keyframes rec-arrive {
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-.rec-arrive { animation: rec-arrive 0.28s ease-out forwards; }
+.fade-up { animation: fade-up 0.25s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
 
-/* Thinking waveform */
-@keyframes thinking-bar {
-  0%   { transform: scaleY(0.3); opacity: 0.35; }
-  100% { transform: scaleY(1);   opacity: 0.9;  }
+/* Staggered fade-up delays */
+.stagger-1 { animation-delay: 50ms; }
+.stagger-2 { animation-delay: 100ms; }
+.stagger-3 { animation-delay: 160ms; }
+.stagger-4 { animation-delay: 220ms; }
+.stagger-5 { animation-delay: 280ms; }
+
+/* ── Recommendation arrival ───────────────────────────────────────────────── */
+@keyframes rec-arrive {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.rec-arrive { animation: rec-arrive 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+
+/* ── Scale-in (for badges, pills) ─────────────────────────────────────────── */
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.88); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.scale-in { animation: scale-in 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+
+/* ── Slide in from right ──────────────────────────────────────────────────── */
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.slide-in-right { animation: slide-in-right 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+
+/* ── Savings card explosion ───────────────────────────────────────────────── */
+@keyframes savings-arrive {
+  0%   { opacity: 0; transform: translateY(8px) scale(0.97); }
+  60%  { transform: translateY(-1px) scale(1.005); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+.savings-arrive { animation: savings-arrive 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+
+/* ── Shimmer loading state ────────────────────────────────────────────────── */
+@keyframes shimmer {
+  from { background-position: -200% center; }
+  to   { background-position: 200% center; }
+}
+.shimmer {
+  background: linear-gradient(90deg, transparent 25%, rgba(255,255,255,0.08) 50%, transparent 75%);
+  background-size: 200% auto;
+  animation: shimmer 1.8s ease-in-out infinite;
 }
 
-/* Scrollbars — light surfaces */
-::-webkit-scrollbar { width: 4px; height: 4px; }
+/* ── Glow pulse for alerts ────────────────────────────────────────────────── */
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+  50%       { box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.15); }
+}
+.glow-pulse { animation: glow-pulse 2s ease-in-out infinite; }
+
+/* ── Green glow for savings ───────────────────────────────────────────────── */
+@keyframes green-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(21, 128, 61, 0); }
+  50%       { box-shadow: 0 0 12px 2px rgba(21, 128, 61, 0.12); }
+}
+.green-glow { animation: green-glow 2.5s ease-in-out infinite; }
+
+/* ── Thinking waveform ────────────────────────────────────────────────────── */
+@keyframes thinking-bar {
+  0%   { transform: scaleY(0.25); opacity: 0.3; }
+  100% { transform: scaleY(1);    opacity: 1.0; }
+}
+
+/* ── Number count-up flash ────────────────────────────────────────────────── */
+@keyframes number-land {
+  0%   { color: #15803D; }
+  40%  { color: #4ADE80; }
+  100% { color: #15803D; }
+}
+.number-land { animation: number-land 0.6s ease-out forwards; }
+
+/* ── Scrollbars — light surfaces ──────────────────────────────────────────── */
+::-webkit-scrollbar { width: 3px; height: 3px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(14, 14, 16, 0.12); border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(14, 14, 16, 0.22); }
+::-webkit-scrollbar-thumb { background: rgba(14, 14, 16, 0.10); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(14, 14, 16, 0.20); }
 
-/* Scrollbars — dark panel */
-.dark-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); }
-.dark-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+/* ── Scrollbars — dark panel ──────────────────────────────────────────────── */
+.dark-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); }
+.dark-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.16); }
 
-/* ── Factory floor animations ──────────────────────────────────────────── */
+/* ── Factory floor animations ─────────────────────────────────────────────── */
 @keyframes oven-glow {
   0%, 100% { opacity: 0.10; }
   50%       { opacity: 0.35; }
@@ -130,8 +263,8 @@ body {
 .oven-glow { animation: oven-glow 4s ease-in-out infinite; }
 
 @keyframes conveyor-flow {
-  0%        { stroke-dashoffset: 0; }
-  100%      { stroke-dashoffset: -24; }
+  0%   { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: -24; }
 }
 
 @keyframes presence-float {
@@ -140,10 +273,10 @@ body {
 }
 .presence-float { animation: presence-float 2.2s ease-in-out infinite; }
 
-/* ── NFC trigger drama ─────────────────────────────────────────────────── */
+/* ── NFC trigger drama ────────────────────────────────────────────────────── */
 @keyframes screen-flash {
   0%   { opacity: 0; }
-  25%  { opacity: 1; }
+  20%  { opacity: 1; }
   100% { opacity: 0; }
 }
 
@@ -151,24 +284,37 @@ body {
   from { transform: translateY(-110%); opacity: 0; }
   to   { transform: translateY(0);     opacity: 1; }
 }
-.incident-slide { animation: incident-slide 0.35s cubic-bezier(0.22,1,0.36,1) forwards; }
+.incident-slide { animation: incident-slide 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
 
-/* ── Speed comparison reveal ───────────────────────────────────────────── */
+/* ── Speed comparison reveal ──────────────────────────────────────────────── */
 @keyframes speed-reveal {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0);   }
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
-.speed-reveal { animation: speed-reveal 0.3s ease-out forwards; }
+.speed-reveal { animation: speed-reveal 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
 
-/* ── News ticker ───────────────────────────────────────────────────────── */
+/* ── News ticker ──────────────────────────────────────────────────────────── */
 @keyframes ticker-scroll {
   from { transform: translateX(0); }
   to   { transform: translateX(-50%); }
 }
 
-/* ── Orchestrated page load ────────────────────────────────────────────── */
+/* ── Page load ────────────────────────────────────────────────────────────── */
 @keyframes load-in {
-  from { opacity: 0; transform: translateY(4px); }
+  from { opacity: 0; transform: translateY(5px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 .load-in { animation: load-in 0.3s ease-out forwards; }
+
+/* ── Confidence bar fill ──────────────────────────────────────────────────── */
+@keyframes bar-fill {
+  from { width: 0%; }
+}
+.bar-fill { animation: bar-fill 1.0s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+
+/* ── Interactive button states ────────────────────────────────────────────── */
+button { transition: opacity var(--t-fast), background var(--t-fast), transform var(--t-fast); }
+button:active:not(:disabled) { transform: scale(0.97); }
+
+/* ── Focus rings ─────────────────────────────────────────────────────────── */
+input:focus { outline: none; }

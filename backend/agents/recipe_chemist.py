@@ -123,11 +123,29 @@ Analyze the ingredient list and provide your clean-label reformulation recommend
     yield events.agent_completed(AGENT_ID, {"raw_analysis": full_text, "recommendation": recommendation})
 
 
+_NUMERIC_FIELDS = {
+    "cost_of_action_usd", "cost_of_inaction_usd",
+    "estimated_cost_impact_usd", "estimated_cost_of_inaction_usd",
+    "total_cost_delta_pct", "confidence",
+}
+
+
+def _coerce_numbers(rec: dict) -> dict:
+    """Ensure known numeric fields are Python floats, not strings."""
+    for field in _NUMERIC_FIELDS:
+        if field in rec and not isinstance(rec[field], (int, float)):
+            try:
+                rec[field] = float(str(rec[field]).replace(",", "").replace("$", "").replace("%", "").strip())
+            except (ValueError, TypeError):
+                pass
+    return rec
+
+
 def _extract_recommendation(text: str) -> dict:
     match = re.search(r"<recommendation>(.*?)</recommendation>", text, re.DOTALL)
     if not match:
         return {"error": "Could not parse structured recommendation", "raw": text[:200]}
     try:
-        return json.loads(match.group(1).strip())
+        return _coerce_numbers(json.loads(match.group(1).strip()))
     except json.JSONDecodeError:
         return {"error": "Invalid JSON in recommendation", "raw": match.group(1)[:200]}

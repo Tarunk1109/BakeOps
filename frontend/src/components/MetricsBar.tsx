@@ -1,89 +1,115 @@
 import { useAgentStore } from "../store/agentStore";
 
-function Sparkline({ history, color }: { history: number[]; color: string }) {
-  if (history.length < 2) return <svg width="100%" height="28" />;
-  const w = 120;
-  const h = 28;
-  const min = Math.min(...history);
-  const max = Math.max(...history);
+function Sparkline({ history, color, fill }: { history: number[]; color: string; fill: string }) {
+  if (history.length < 2) return <svg width="100%" height="32" />;
+  const w = 140, h = 32;
+  const min   = Math.min(...history);
+  const max   = Math.max(...history);
   const range = max - min || 1;
-  const pts = history.map((v, i) => {
+  const pts   = history.map((v, i) => {
     const x = (i / (history.length - 1)) * w;
-    const y = h - 2 - ((v - min) / range) * (h - 4);
-    return `${x},${y}`;
+    const y = h - 3 - ((v - min) / range) * (h - 6);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
   });
-  const firstX = pts[0].split(",")[0];
-  const lastX  = pts[pts.length - 1].split(",")[0];
-  const fill   = `M ${pts[0]} L ${pts.slice(1).join(" L ")} L ${lastX},${h} L ${firstX},${h} Z`;
-  const gid    = `mk-${color.replace(/[^a-z0-9]/gi, "")}`;
+  const firstX  = pts[0].split(",")[0];
+  const lastX   = pts[pts.length - 1].split(",")[0];
+  const fillPath = `M ${pts[0]} L ${pts.slice(1).join(" L ")} L ${lastX},${h} L ${firstX},${h} Z`;
+  const gid = `mk-${color.replace(/[^a-z0-9]/gi, "")}-${Math.random().toString(36).slice(2,6)}`;
+
   return (
     <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
       <defs>
         <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity={0.12} />
-          <stop offset="100%" stopColor={color} stopOpacity={0} />
+          <stop offset="0%"   stopColor={fill} stopOpacity={0.16} />
+          <stop offset="100%" stopColor={fill} stopOpacity={0} />
         </linearGradient>
       </defs>
-      <path d={fill} fill={`url(#${gid})`} />
-      <polyline points={pts.join(" ")} fill="none" stroke={color} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
+      <path d={fillPath} fill={`url(#${gid})`} />
+      <polyline
+        points={pts.join(" ")}
+        fill="none"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
 
 interface CardProps {
-  label: string;
-  value: number;
-  unit: string;
-  target: number;
-  history: number[];
-  color: string;
+  label:    string;
+  value:    number;
+  unit:     string;
+  target:   number;
+  history:  number[];
+  color:    string;
+  fill:     string;
   decimals?: number;
+  lowerBetter?: boolean;
 }
 
-function MetricCard({ label, value, unit, target, history, color, decimals = 1 }: CardProps) {
-  const delta     = value - target;
-  const deltaSign = delta >= 0 ? "+" : "";
-  const isGood    = label === "Waste"
-    ? delta <= 0   // lower waste is better
-    : delta >= 0;  // higher everything else is better
+function MetricCard({ label, value, unit, target, history, color, fill, decimals = 1, lowerBetter }: CardProps) {
+  const delta   = value - target;
+  const isGood  = lowerBetter ? delta <= 0 : delta >= 0;
+  const sign    = delta >= 0 ? "+" : "";
+  const pct     = Math.min(Math.abs(value / target) * 100, 100);
 
   return (
     <div
-      className="bg-paper rounded-lg p-5 flex flex-col gap-2"
-      style={{ border: "1px solid var(--border-hairline)" }}
+      className="rounded-xl flex flex-col overflow-hidden"
+      style={{
+        background: "var(--bg-paper)",
+        border: "1px solid var(--border-hairline)",
+        padding: "16px 16px 0 16px",
+      }}
     >
-      <span
-        className="font-mono uppercase tracking-[0.18em]"
-        style={{ fontSize: 10, color: "var(--ink-tertiary)" }}
-      >
-        {label}
-      </span>
-
-      <div className="flex items-end justify-between">
-        <div className="flex items-baseline gap-1">
-          <span
-            className="font-display tabular leading-none font-medium"
-            style={{ fontSize: 28, color: "var(--ink-primary)", letterSpacing: "-0.02em" }}
-          >
-            {value.toFixed(decimals)}
-          </span>
-          <span className="font-mono" style={{ fontSize: 10, color: "var(--ink-muted)" }}>
-            {unit}
-          </span>
-        </div>
+      {/* Label + delta */}
+      <div className="flex items-center justify-between mb-2">
+        <span className="font-mono uppercase tracking-[0.18em]" style={{ fontSize: 9, color: "var(--ink-muted)" }}>
+          {label}
+        </span>
         <span
           className="font-mono tabular"
           style={{
-            fontSize: 11,
+            fontSize: 10,
             color: isGood ? "var(--status-running)" : "var(--status-danger)",
+            fontWeight: 600,
           }}
         >
-          {deltaSign}{delta.toFixed(1)}
+          {sign}{delta.toFixed(1)}
         </span>
       </div>
 
-      <div style={{ height: 28, marginLeft: -4, marginRight: -4, overflow: "hidden" }}>
-        <Sparkline history={history} color={color} />
+      {/* Main value */}
+      <div className="flex items-baseline gap-1 mb-3">
+        <span
+          className="font-display tabular font-medium leading-none"
+          style={{ fontSize: 28, color: "var(--ink-primary)", letterSpacing: "-0.025em" }}
+        >
+          {value.toFixed(decimals)}
+        </span>
+        <span className="font-mono" style={{ fontSize: 10, color: "var(--ink-muted)" }}>
+          {unit}
+        </span>
+      </div>
+
+      {/* Target progress bar */}
+      <div className="mb-2" style={{ height: 2, background: "var(--border-hairline)", borderRadius: 1 }}>
+        <div
+          style={{
+            width: `${Math.min(lowerBetter ? 100 - pct + 100 : pct, 100)}%`,
+            height: "100%",
+            borderRadius: 1,
+            background: isGood ? "var(--status-running)" : "var(--status-danger)",
+            transition: "width 0.6s ease",
+          }}
+        />
+      </div>
+
+      {/* Sparkline flush to card bottom */}
+      <div style={{ height: 32, marginLeft: -16, marginRight: -16, overflow: "hidden" }}>
+        <Sparkline history={history} color={color} fill={fill} />
       </div>
     </div>
   );
@@ -93,14 +119,15 @@ export default function MetricsBar() {
   const m = useAgentStore((s) => s.metrics);
 
   return (
-    <div className="grid grid-cols-4 gap-4">
+    <div className="grid grid-cols-4 gap-3">
       <MetricCard
         label="OEE"
         value={m.oee.value}
         unit="%"
         target={90}
         history={m.oee.history}
-        color="var(--status-running)"
+        color="#15803D"
+        fill="#15803D"
         decimals={1}
       />
       <MetricCard
@@ -109,8 +136,10 @@ export default function MetricsBar() {
         unit="%"
         target={2}
         history={m.waste.history}
-        color="var(--status-danger)"
+        color="#B91C1C"
+        fill="#B91C1C"
         decimals={1}
+        lowerBetter
       />
       <MetricCard
         label="Energy"
@@ -118,7 +147,8 @@ export default function MetricsBar() {
         unit="kWh"
         target={320}
         history={m.energy.history}
-        color="var(--status-info)"
+        color="#1D4ED8"
+        fill="#1D4ED8"
         decimals={0}
       />
       <MetricCard
@@ -127,7 +157,8 @@ export default function MetricsBar() {
         unit="units"
         target={10450}
         history={m.totalOutput.history}
-        color="var(--accent)"
+        color="#B45309"
+        fill="#B45309"
         decimals={0}
       />
     </div>

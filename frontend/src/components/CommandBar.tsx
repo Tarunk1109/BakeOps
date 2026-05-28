@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Send, Paperclip, ChevronDown, Camera, RotateCcw, MessageCircle, Mic, MicOff } from "lucide-react";
 import { triggerScenario, triggerWithImage, scanLabel, sendChat } from "../lib/sseClient";
 import { useAgentStore } from "../store/agentStore";
@@ -24,6 +24,8 @@ const PRESETS = [
     text: "Customer service log: 7 retailers reporting premature mold growth on Stonefire naan products distributed through West Coast warehouse. Shelf life trending 13.4 days versus 18-day commitment. Past 48 hours: 142 customer complaints. Cross-functional investigation required.",
   },
 ];
+
+const GREETINGS = /^(hi|hello|hey|howdy|yo|sup|hiya|greetings|good\s*(morning|afternoon|evening)|what'?s\s*up|helo|hii+|heya|test|testing|ok|okay)[.!?\s]*$/i;
 
 function handleScenarioEvent(event: BakeOpsEvent) {
   const store = useAgentStore.getState();
@@ -69,15 +71,29 @@ export default function CommandBar() {
   const inputRef       = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
 
-  const store       = useAgentStore();
-  const finalRec    = useAgentStore((s) => s.finalRecommendation);
-  const isChatting  = useAgentStore((s) => s.isChatting);
+  const store        = useAgentStore();
+  const finalRec     = useAgentStore((s) => s.finalRecommendation);
+  const isChatting   = useAgentStore((s) => s.isChatting);
   const chatMessages = useAgentStore((s) => s.chatMessages);
   const scenarioName = useAgentStore((s) => s.scenarioName);
 
-  // ── Mode ──────────────────────────────────────────────────────────────────
-  // Chat mode when a recommendation is on screen and agents aren't running
   const chatMode = !!finalRec && !store.isRunning;
+
+  // Validation (memoized)
+  const scenarioIsGreeting = useMemo(
+    () => !chatMode && GREETINGS.test(text.trim()),
+    [chatMode, text]
+  );
+  const scenarioTooShort = useMemo(
+    () => !chatMode && text.trim().length > 0 && text.trim().length < 20,
+    [chatMode, text]
+  );
+  const scenarioInvalid = scenarioTooShort || scenarioIsGreeting;
+
+  const isDisabled = chatMode ? isChatting : store.isRunning;
+  const canSubmit  = chatMode
+    ? (!!text.trim() && !isChatting)
+    : (!!text.trim() && !store.isRunning && !scenarioInvalid);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -90,7 +106,14 @@ export default function CommandBar() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // ── Scenario submit ───────────────────────────────────────────────────────
+  // Stop listening when busy
+  useEffect(() => {
+    if ((store.isRunning || isChatting) && isListening) {
+      recognitionRef.current?.stop();
+    }
+  }, [store.isRunning, isChatting, isListening]);
+
+  // ── Scenario submit ────────────────────────────────────────────────────────
   const submitScenario = (scenario: string, file?: File) => {
     if (!scenario.trim() || store.isRunning) return;
     store.reset();
@@ -103,20 +126,15 @@ export default function CommandBar() {
     else      triggerScenario(scenario, handleScenarioEvent, onDone, onError);
   };
 
-  // ── Chat submit ───────────────────────────────────────────────────────────
+  // ── Chat submit ────────────────────────────────────────────────────────────
   const submitChat = () => {
     const q = text.trim();
     if (!q || isChatting || !finalRec) return;
     setText("");
 
-    const addMsg      = store.addChatMessage;
-    const appendToken = store.appendChatToken;
-    const finishMsg   = store.finishChatMessage;
-    const setChat     = store.setIsChatting;
-
-    addMsg({ role: "user",      content: q,  timestamp: new Date().toISOString() });
-    addMsg({ role: "assistant", content: "", timestamp: new Date().toISOString(), streaming: true });
-    setChat(true);
+    store.addChatMessage({ role: "user",      content: q,  timestamp: new Date().toISOString() });
+    store.addChatMessage({ role: "assistant", content: "", timestamp: new Date().toISOString(), streaming: true });
+    store.setIsChatting(true);
 
     const history = chatMessages.map((m) => ({ role: m.role, content: m.content }));
 
@@ -125,85 +143,61 @@ export default function CommandBar() {
       finalRec,
       (finalRec.scenario as string) || scenarioName,
       history,
-      (token) => appendToken(token),
-      ()      => { finishMsg(); setChat(false); },
-      (err)   => { console.error(err); finishMsg(); setChat(false); },
+      (token) => store.appendChatToken(token),
+      ()      => { store.finishChatMessage(); store.setIsChatting(false); },
+      (err)   => { console.error(err); store.finishChatMessage(); store.setIsChatting(false); },
     );
   };
 
-  // ── Voice input ───────────────────────────────────────────────────────────
+  // ── Voice input ────────────────────────────────────────────────────────────
   const toggleVoice = () => {
     if (isListening) {
       recognitionRef.current?.stop();
       return;
     }
-
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) {
-      alert("Voice input requires Chrome or Safari.");
-      return;
-    }
+    if (!SR) { alert("Voice input requires Chrome or Safari."); return; }
 
     const recognition: SpeechRecognition = new SR();
-    recognition.continuous      = true;   // keep listening until user stops
-    recognition.interimResults  = true;
-    recognition.lang            = "en-CA";
-    recognitionRef.current      = recognition;
+    recognition.continuous     = true;
+    recognition.interimResults = true;
+    recognition.lang           = "en-CA";
+    recognitionRef.current     = recognition;
 
     recognition.onstart = () => setIsListening(true);
 
     recognition.onresult = (e: SpeechRecognitionEvent) => {
-      let interim = "";
-      let final   = "";
+      let interim = "", final = "";
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const t = e.results[i][0].transcript;
         if (e.results[i].isFinal) final += t;
         else interim += t;
       }
-      if (final) {
-        setText((prev) => (prev + " " + final).trim());
-        setInterimText("");
-      } else {
-        setInterimText(interim);
-      }
+      if (final) { setText((prev) => (prev + " " + final).trim()); setInterimText(""); }
+      else { setInterimText(interim); }
     };
 
     recognition.onerror = (e: SpeechRecognitionErrorEvent) => {
-      if (e.error !== "no-speech" && e.error !== "aborted") {
-        console.warn("Speech recognition error:", e.error);
-      }
+      if (e.error !== "no-speech" && e.error !== "aborted") console.warn("Speech error:", e.error);
       setIsListening(false);
       setInterimText("");
     };
 
-    recognition.onend = () => {
-      setIsListening(false);
-      setInterimText("");
-    };
-
+    recognition.onend = () => { setIsListening(false); setInterimText(""); };
     recognition.start();
   };
 
-  // Stop listening when agents start running
-  useEffect(() => {
-    if ((store.isRunning || isChatting) && isListening) {
-      recognitionRef.current?.stop();
-    }
-  }, [store.isRunning, isChatting, isListening]);
-
-  // ── Unified Enter handler ─────────────────────────────────────────────────
+  // ── Unified Enter handler ──────────────────────────────────────────────────
   const handleEnter = () => {
-    if (!canSubmit) return;           // blocks Enter key too, not just the button
-    if (chatMode) submitChat();
-    else {
-      const file = fileRef.current?.files?.[0];
-      if (showUpload && file) submitScenario(text, file);
-      else submitScenario(text);
-    }
+    if (!canSubmit) return;
+    if (chatMode) { submitChat(); return; }
+    const file = fileRef.current?.files?.[0];
+    if (showUpload && file) submitScenario(text, file);
+    else submitScenario(text);
   };
 
-  // ── Webcam scan ───────────────────────────────────────────────────────────
+  // ── Webcam scan ────────────────────────────────────────────────────────────
   const handleScan = (base64: string) => {
     if (store.isRunning) return;
     store.reset();
@@ -220,6 +214,7 @@ export default function CommandBar() {
     setText(preset.text);
     setShowUpload(!!preset.upload);
     setShowDropdown(false);
+    inputRef.current?.focus();
   };
 
   const resetForNewScenario = () => {
@@ -230,242 +225,261 @@ export default function CommandBar() {
     inputRef.current?.focus();
   };
 
-  // ── Scenario validation ───────────────────────────────────────────────────
-  const GREETINGS = /^(hi|hello|hey|howdy|yo|sup|hiya|greetings|good\s*(morning|afternoon|evening)|what'?s\s*up|helo|hii+|heya|test|testing|ok|okay)[.!?\s]*$/i;
-  const scenarioTooShort = !chatMode && text.trim().length < 20;
-  const scenarioIsGreeting = !chatMode && GREETINGS.test(text.trim());
-  const scenarioInvalid = scenarioTooShort || scenarioIsGreeting;
+  // ── Hint text ──────────────────────────────────────────────────────────────
+  const hintText = useMemo(() => {
+    if (isListening) return "🎙 Listening — speak the scenario, then click the mic to stop";
+    if (chatMode) return "Chat mode · full context aware · 'New scenario' to reset";
+    if (scenarioIsGreeting) return "⚠ That looks like a greeting — describe an actual factory problem";
+    if (scenarioTooShort && text.trim().length > 0) return `Scenario too short (${text.trim().length}/20 chars) — pick a preset or describe the issue`;
+    return "Tap NFC · 🎙 voice · scan label · or pick a preset →";
+  }, [isListening, chatMode, scenarioIsGreeting, scenarioTooShort, text]);
 
-  const isDisabled = chatMode ? isChatting : store.isRunning;
-  const canSubmit  = chatMode
-    ? (!!text.trim() && !isChatting)
-    : (!!text.trim() && !store.isRunning && !scenarioInvalid);
+  const hintColor = scenarioIsGreeting
+    ? "#F59E0B"
+    : scenarioTooShort && text.trim().length > 0
+    ? "var(--ink-muted)"
+    : chatMode
+    ? "rgba(255,255,255,0.25)"
+    : "var(--ink-muted)";
 
   return (
     <>
       <WebcamScanner isOpen={showScanner} onClose={() => setShowScanner(false)} onScan={handleScan} />
 
       <div
-        className="flex items-center px-6 gap-3 shrink-0 relative"
         style={{
-          height: 64,
           background: chatMode ? "var(--bg-ink-soft)" : "var(--bg-paper-warm)",
-          borderTop: chatMode
-            ? "1px solid var(--border-ink)"
-            : "1px solid var(--border-hairline)",
+          borderTop: chatMode ? "1px solid var(--border-ink)" : "1px solid var(--border-hairline)",
           transition: "background 0.3s ease, border-color 0.3s ease",
         }}
       >
-        {/* Mode indicator */}
-        {chatMode ? (
-          <MessageCircle size={14} strokeWidth={1.5} style={{ color: "var(--accent)", flexShrink: 0 }} />
-        ) : (
-          <span className="font-mono" style={{ fontSize: 14, color: "var(--ink-muted)", flexShrink: 0 }}>⌘</span>
-        )}
+        {/* Main bar */}
+        <div className="flex items-center px-5 gap-3" style={{ height: 56 }}>
+          {/* Mode icon */}
+          {chatMode ? (
+            <MessageCircle size={14} strokeWidth={1.5} style={{ color: "var(--accent)", flexShrink: 0 }} />
+          ) : (
+            <span className="font-mono" style={{ fontSize: 16, color: "var(--ink-muted)", flexShrink: 0, lineHeight: 1 }}>⌘</span>
+          )}
 
-        {/* Input — shows interim speech text while listening */}
-        <div className="flex-1 relative flex items-center">
-          <input
-            ref={inputRef}
-            type="text"
-            className="w-full bg-transparent border-none outline-none font-sans"
-            style={{
-              fontSize: 14,
-              color: chatMode ? "var(--paper-primary)" : "var(--ink-primary)",
-              caretColor: "var(--accent)",
-              // Listening ring
-              ...(isListening ? {
-                background: chatMode ? "rgba(180,83,9,0.06)" : "rgba(180,83,9,0.04)",
-                borderRadius: 6,
-                padding: "2px 8px",
-              } : {}),
-            }}
-            placeholder={
-              isListening
-                ? "Listening… speak your scenario"
-                : chatMode
-                ? "Ask a follow-up about this recommendation…"
-                : "Trigger scenario or describe a factory event…"
-            }
-            value={text}
-            onChange={(e) => { if (!isListening) setText(e.target.value); }}
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleEnter(); } }}
-            disabled={isDisabled}
-          />
-          {/* Interim speech overlay */}
-          {isListening && interimText && (
-            <span
-              className="absolute font-sans pointer-events-none"
+          {/* Text input */}
+          <div className="flex-1 relative flex items-center min-w-0">
+            <input
+              ref={inputRef}
+              type="text"
+              className="w-full bg-transparent border-none outline-none font-sans"
               style={{
-                left: 8, right: 8,
                 fontSize: 14,
-                color: chatMode ? "rgba(250,250,247,0.45)" : "rgba(14,14,16,0.35)",
-                overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis",
+                color: chatMode ? "var(--paper-primary)" : "var(--ink-primary)",
+                caretColor: "var(--accent)",
+                letterSpacing: "-0.005em",
+                ...(isListening ? {
+                  background: chatMode ? "rgba(180,83,9,0.06)" : "rgba(180,83,9,0.04)",
+                  borderRadius: 6,
+                  padding: "2px 8px",
+                } : {}),
+              }}
+              placeholder={
+                isListening ? "Listening… speak your scenario"
+                : chatMode   ? "Ask a follow-up question…"
+                : "Describe a factory scenario…"
+              }
+              value={text}
+              onChange={(e) => { if (!isListening) setText(e.target.value); }}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleEnter(); } }}
+              disabled={isDisabled}
+            />
+            {/* Interim speech ghost text */}
+            {isListening && interimText && (
+              <span
+                className="absolute font-sans pointer-events-none"
+                style={{
+                  left: 8, right: 8,
+                  fontSize: 14,
+                  color: chatMode ? "rgba(250,250,247,0.4)" : "rgba(14,14,16,0.3)",
+                  overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis",
+                }}
+              >
+                {text ? text + " " : ""}{interimText}
+              </span>
+            )}
+          </div>
+
+          {/* Controls */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* Chat mode: Reset */}
+            {chatMode && (
+              <button
+                onClick={resetForNewScenario}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded font-sans"
+                title="Start a new scenario"
+                style={{
+                  fontSize: 12,
+                  border: "1px solid rgba(255,255,255,0.09)",
+                  color: "var(--paper-tertiary)",
+                  background: "rgba(255,255,255,0.04)",
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <RotateCcw size={10} strokeWidth={1.5} />
+                New
+              </button>
+            )}
+
+            {/* Scenario mode controls */}
+            {!chatMode && (
+              <>
+                {showUpload && (
+                  <label
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded cursor-pointer font-sans"
+                    style={{ fontSize: 12, border: "1px solid var(--border-soft)", color: "var(--ink-tertiary)", background: "var(--bg-paper)", whiteSpace: "nowrap" }}
+                  >
+                    <Paperclip size={11} strokeWidth={1.5} />
+                    {fileRef.current?.files?.[0]?.name.slice(0, 12) ?? "Upload"}
+                    <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={() => {}} />
+                  </label>
+                )}
+
+                <button
+                  onClick={() => setShowScanner(true)}
+                  disabled={store.isRunning}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded font-sans"
+                  title="Scan product label"
+                  style={{
+                    fontSize: 12,
+                    border: "1px solid var(--border-soft)",
+                    color: store.isRunning ? "var(--ink-muted)" : "var(--ink-tertiary)",
+                    background: "var(--bg-paper)",
+                    cursor: store.isRunning ? "not-allowed" : "pointer",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  <Camera size={11} strokeWidth={1.5} />
+                  Scan
+                </button>
+
+                {/* Preset dropdown */}
+                <div ref={dropdownRef} className="relative">
+                  <button
+                    onClick={() => setShowDropdown((s) => !s)}
+                    disabled={store.isRunning}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded font-mono"
+                    style={{
+                      fontSize: 10,
+                      border: `1px solid ${activePreset ? "rgba(180,83,9,0.35)" : "var(--border-soft)"}`,
+                      color: activePreset ? "var(--accent)" : "var(--ink-tertiary)",
+                      background: activePreset ? "rgba(180,83,9,0.05)" : "var(--bg-paper)",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {activePreset ?? "Preset"}
+                    <ChevronDown size={9} strokeWidth={2} />
+                  </button>
+
+                  {showDropdown && (
+                    <div
+                      className="absolute bottom-full right-0 mb-2 rounded-xl overflow-hidden"
+                      style={{
+                        width: 268,
+                        background: "var(--bg-paper)",
+                        border: "1px solid var(--border-soft)",
+                        boxShadow: "0 12px 32px rgba(14,14,16,0.14), 0 2px 8px rgba(14,14,16,0.06)",
+                        zIndex: 100,
+                      }}
+                    >
+                      {PRESETS.map((p, i) => (
+                        <button
+                          key={p.id}
+                          onClick={() => selectPreset(p)}
+                          className="w-full text-left px-4 py-3 flex flex-col gap-1"
+                          style={{
+                            background: activePreset === p.id ? "rgba(180,83,9,0.04)" : "transparent",
+                            borderBottom: i < PRESETS.length - 1 ? "1px solid var(--border-hairline)" : "none",
+                            transition: "background 0.12s ease",
+                          }}
+                          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(14,14,16,0.03)"; }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = activePreset === p.id ? "rgba(180,83,9,0.04)" : "transparent"; }}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-mono uppercase tracking-wider" style={{ fontSize: 8.5, color: "var(--accent)" }}>{p.label}</span>
+                            <span className="font-mono" style={{ fontSize: 8.5, color: "var(--ink-muted)" }}>{p.short}</span>
+                          </div>
+                          <span className="font-sans font-medium" style={{ fontSize: 13, color: "var(--ink-primary)", letterSpacing: "-0.005em" }}>{p.title}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Mic */}
+            <button
+              onClick={toggleVoice}
+              disabled={isDisabled}
+              title={isListening ? "Stop listening" : "Voice input"}
+              className="flex items-center justify-center"
+              style={{
+                width: 30, height: 30,
+                borderRadius: 8,
+                border: isListening
+                  ? "1px solid rgba(180,83,9,0.5)"
+                  : `1px solid ${chatMode ? "rgba(255,255,255,0.09)" : "var(--border-soft)"}`,
+                background: isListening ? "rgba(180,83,9,0.12)" : "transparent",
+                color: isListening
+                  ? "var(--accent)"
+                  : chatMode ? "var(--paper-tertiary)" : "var(--ink-tertiary)",
+                cursor: isDisabled ? "not-allowed" : "pointer",
+                animation: isListening ? "live-pulse 1.2s ease-in-out infinite" : "none",
+                flexShrink: 0,
               }}
             >
-              {text ? text + " " : ""}{interimText}
-            </span>
-          )}
-        </div>
+              {isListening ? <MicOff size={12} strokeWidth={1.5} /> : <Mic size={12} strokeWidth={1.5} />}
+            </button>
 
-        {/* Right controls */}
-        <div className="flex items-center gap-2 shrink-0">
-          {/* Chat mode: Reset button */}
-          {chatMode && (
+            {/* Submit */}
             <button
-              onClick={resetForNewScenario}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded font-sans"
-              title="Start a new scenario"
+              onClick={handleEnter}
+              disabled={!canSubmit}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg font-sans font-medium"
               style={{
-                fontSize: 12,
-                border: "1px solid rgba(255,255,255,0.1)",
-                color: "var(--paper-tertiary)",
-                background: "transparent",
-                cursor: "pointer",
+                fontSize: 13,
+                background: canSubmit
+                  ? "var(--accent)"
+                  : chatMode ? "rgba(255,255,255,0.05)" : "rgba(14,14,16,0.06)",
+                color: canSubmit
+                  ? "#FFFFFF"
+                  : chatMode ? "var(--paper-tertiary)" : "var(--ink-muted)",
+                transition: "background 0.15s ease, color 0.15s ease",
+                cursor: canSubmit ? "pointer" : "default",
                 whiteSpace: "nowrap",
               }}
             >
-              <RotateCcw size={11} strokeWidth={1.5} />
-              New scenario
-            </button>
-          )}
-
-          {/* Scenario mode controls */}
-          {!chatMode && (
-            <>
-              {showUpload && (
-                <label
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded cursor-pointer font-sans"
-                  style={{ fontSize: 13, border: "1px solid var(--border-soft)", color: "var(--ink-tertiary)", background: "var(--bg-paper)" }}
-                >
-                  <Paperclip size={12} strokeWidth={1.5} />
-                  {fileRef.current?.files?.[0]?.name.slice(0, 14) ?? "Upload Label"}
-                  <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={() => {}} />
-                </label>
+              {(store.isRunning || isChatting) ? (
+                <span className="font-mono" style={{ fontSize: 13, animation: "live-pulse 1.2s ease-in-out infinite" }}>···</span>
+              ) : (
+                <>
+                  <Send size={11} strokeWidth={2} />
+                  {chatMode ? "Ask" : "Run"}
+                </>
               )}
-
-              <button
-                onClick={() => setShowScanner(true)}
-                disabled={store.isRunning}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded font-sans"
-                title="Scan product label with webcam"
-                style={{
-                  fontSize: 13,
-                  border: "1px solid var(--border-soft)",
-                  color: store.isRunning ? "var(--ink-muted)" : "var(--ink-tertiary)",
-                  background: "var(--bg-paper)",
-                  cursor: store.isRunning ? "not-allowed" : "pointer",
-                }}
-              >
-                <Camera size={12} strokeWidth={1.5} />
-                Scan Label
-              </button>
-
-              <div ref={dropdownRef} className="relative">
-                <button
-                  onClick={() => setShowDropdown((s) => !s)}
-                  disabled={store.isRunning}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded font-mono"
-                  style={{
-                    fontSize: 11,
-                    border: "1px solid var(--border-soft)",
-                    color: activePreset ? "var(--accent)" : "var(--ink-tertiary)",
-                    background: activePreset ? "var(--accent-soft)" : "var(--bg-paper)",
-                  }}
-                >
-                  {activePreset ?? "SCN"}
-                  <ChevronDown size={10} strokeWidth={2} />
-                </button>
-
-                {showDropdown && (
-                  <div
-                    className="absolute bottom-full right-0 mb-2 rounded-lg overflow-hidden"
-                    style={{ width: 260, background: "var(--bg-paper)", border: "1px solid var(--border-soft)", boxShadow: "0 8px 24px rgba(14,14,16,0.12)", zIndex: 100 }}
-                  >
-                    {PRESETS.map((p) => (
-                      <button key={p.id} onClick={() => selectPreset(p)}
-                        className="w-full text-left px-4 py-3 flex flex-col gap-0.5"
-                        style={{ background: activePreset === p.id ? "var(--accent-soft)" : "transparent", borderBottom: "1px solid var(--border-hairline)" }}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-mono uppercase tracking-wider" style={{ fontSize: 9, color: "var(--accent)" }}>{p.label}</span>
-                          <span className="font-mono" style={{ fontSize: 9, color: "var(--ink-muted)" }}>{p.short}</span>
-                        </div>
-                        <span className="font-sans font-medium" style={{ fontSize: 13, color: "var(--ink-primary)" }}>{p.title}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-
-          {/* Mic button — works in both modes */}
-          <button
-            onClick={toggleVoice}
-            disabled={isDisabled}
-            title={isListening ? "Stop listening" : "Voice input"}
-            className="flex items-center justify-center"
-            style={{
-              width: 32, height: 32,
-              borderRadius: 8,
-              border: isListening
-                ? "1px solid rgba(180,83,9,0.5)"
-                : `1px solid ${chatMode ? "rgba(255,255,255,0.1)" : "var(--border-soft)"}`,
-              background: isListening
-                ? "rgba(180,83,9,0.12)"
-                : "transparent",
-              color: isListening
-                ? "var(--accent)"
-                : chatMode ? "var(--paper-tertiary)" : "var(--ink-tertiary)",
-              cursor: isDisabled ? "not-allowed" : "pointer",
-              transition: "all 0.15s ease",
-              flexShrink: 0,
-              animation: isListening ? "live-pulse 1.2s ease-in-out infinite" : "none",
-            }}
-          >
-            {isListening
-              ? <MicOff size={13} strokeWidth={1.5} />
-              : <Mic     size={13} strokeWidth={1.5} />}
-          </button>
-
-          {/* Submit / Send */}
-          <button
-            onClick={handleEnter}
-            disabled={!canSubmit}
-            className="flex items-center gap-1.5 px-4 py-1.5 rounded font-sans font-medium"
-            style={{
-              fontSize: 13,
-              background: canSubmit ? "var(--accent)" : (chatMode ? "rgba(255,255,255,0.06)" : "var(--border-soft)"),
-              color: canSubmit ? "#FFFFFF" : (chatMode ? "var(--paper-tertiary)" : "var(--ink-muted)"),
-              transition: "background 0.15s",
-            }}
-          >
-            {(store.isRunning || isChatting) ? (
-              <span className="pulse-dot font-mono" style={{ fontSize: 13 }}>···</span>
-            ) : (
-              <><Send size={12} strokeWidth={2} />{chatMode ? "Ask" : "Send"}</>
-            )}
-          </button>
+            </button>
+          </div>
         </div>
 
-        {/* Bottom hint */}
-        <span
-          className="absolute font-mono"
-          style={{ fontSize: 9, bottom: 7, right: 24, pointerEvents: "none",
-            color: scenarioIsGreeting ? "var(--status-warning)" : scenarioTooShort && text.trim().length > 0 ? "var(--ink-muted)" : chatMode ? "rgba(255,255,255,0.2)" : "var(--ink-muted)"
-          }}
+        {/* Hint strip */}
+        <div
+          className="px-5 pb-2 flex items-center"
+          style={{ minHeight: 22 }}
         >
-          {isListening
-            ? "🎙 Listening — speak the scenario, then click mic to stop"
-            : chatMode
-            ? "Chat mode · knows the full recommendation · click 'New scenario' to reset"
-            : scenarioIsGreeting
-            ? "That looks like a greeting — describe an actual factory scenario to trigger agents"
-            : scenarioTooShort && text.trim().length > 0
-            ? `Scenario too short (${text.trim().length}/20 chars min) — pick a preset or describe the problem`
-            : "Tap NFC · 🎙 voice · scan label · or pick a preset above"}
-        </span>
+          <span
+            className="font-mono"
+            style={{ fontSize: 9, color: hintColor, letterSpacing: "0.02em", transition: "color 0.2s ease" }}
+          >
+            {hintText}
+          </span>
+        </div>
       </div>
     </>
   );

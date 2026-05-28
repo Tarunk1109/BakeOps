@@ -11,3 +11,10 @@ frontend/dist/
 
 # OS
 .DS_Store
+
+# Planning documents (internal only)
+BAKEOPS_DAY1_PLAN.md
+BAKEOPS_DAY2_PLAN.md
+BAKEOPS_DAY3_PLAN.md
+BAKEOPS_DAY4_WOW_PLAN.md
+BAKEOPS_TELEGRAM_AND_WEBCAM.md

@@ -435,18 +435,8 @@ async def chat_endpoint(req: ChatRequest):
 
         # Build context block from the recommendation
         sr = req.recommendation.get("specialist_recommendation", {})
-        context = (
-            f"SCENARIO: {req.scenario}\n\n"
-            f"RECOMMENDATION SUMMARY:\n{req.recommendation.get('summary', '')}\n\n"
-            f"STRUCTURED FINDINGS:\n"
-            f"  Diagnosis: {sr.get('diagnosis') or sr.get('disruption_summary', 'N/A')}\n"
-            f"  Recommended Action: {sr.get('recommended_action', 'N/A')}\n"
-            f"  Cost of Action: ${sr.get('cost_of_action_usd', 'N/A'):,}" if isinstance(sr.get('cost_of_action_usd'), (int, float)) else
-            f"  Cost of Action: {sr.get('cost_of_action_usd', 'N/A')}\n"
-        )
-        # Patch: rebuild cleanly
-        cost_action   = f"${int(sr['cost_of_action_usd']):,}"   if isinstance(sr.get('cost_of_action_usd'),   (int,float)) else str(sr.get('cost_of_action_usd',   'N/A'))
-        cost_inaction = f"${int(sr['cost_of_inaction_usd']):,}" if isinstance(sr.get('cost_of_inaction_usd'), (int,float)) else str(sr.get('cost_of_inaction_usd', 'N/A'))
+        cost_action   = f"${int(sr['cost_of_action_usd']):,}"   if isinstance(sr.get('cost_of_action_usd'),   (int, float)) else str(sr.get('cost_of_action_usd',   'N/A'))
+        cost_inaction = f"${int(sr['cost_of_inaction_usd']):,}" if isinstance(sr.get('cost_of_inaction_usd'), (int, float)) else str(sr.get('cost_of_inaction_usd', 'N/A'))
         context = (
             f"SCENARIO: {req.scenario}\n\n"
             f"RECOMMENDATION SUMMARY:\n{req.recommendation.get('summary', '')}\n\n"
