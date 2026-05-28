@@ -4,17 +4,20 @@ import asyncio
 import base64
 import json
 import random
+import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List
+from typing import AsyncGenerator, List
 
+import anthropic
 from fastapi import FastAPI, File, Form, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
-from config import FACTORY_STATE_PATH
+from config import ANTHROPIC_API_KEY, FACTORY_STATE_PATH
 from agents import orchestrator
+from streaming import events as ev
 
 app = FastAPI(title="BakeOps Command Center")
 
@@ -248,6 +251,112 @@ async def upload_label(
 
     async def stream():
         async for chunk in orchestrator.run(scenario, factory_state, image_b64, media_type):
+            yield chunk
+
+    return StreamingResponse(stream(), media_type="text/event-stream", headers=_SSE_HEADERS)
+
+
+# ─── Webcam label scan ────────────────────────────────────────────────────────
+class ScanLabelRequest(BaseModel):
+    image: str  # raw base64, no data-URL prefix
+
+
+async def _process_label_scan(image_base64: str) -> AsyncGenerator[str, None]:
+    """
+    1. Emit label_scan_started
+    2. Call Claude Vision (async) to extract product + ingredients
+    3. Emit label_scan_result with extracted data
+    4. Build a recipe scenario and run through orchestrator → Recipe Chemist
+    """
+    t0 = time.monotonic()
+
+    yield ev.label_scan_started("orchestrator", {
+        "status": "Analyzing label with computer vision…"
+    })
+
+    aclient = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
+    try:
+        vision_resp = await aclient.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=1200,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {
+                            "type":       "base64",
+                            "media_type": "image/jpeg",
+                            "data":       image_base64,
+                        },
+                    },
+                    {
+                        "type": "text",
+                        "text": (
+                            "Read this food product label photograph.\n"
+                            "Extract exactly:\n"
+                            "1. product_name — the product's name\n"
+                            "2. brand — brand name\n"
+                            "3. ingredients — the full ingredient list as a single string, exactly as printed\n"
+                            "4. allergens — list of allergen warnings (strings)\n\n"
+                            "Return ONLY a valid JSON object with those 4 keys. No markdown, no explanation."
+                        ),
+                    },
+                ],
+            }],
+        )
+        raw = vision_resp.content[0].text.strip()
+        # Strip markdown code fences if present
+        raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        extracted: dict = json.loads(raw)
+    except Exception as exc:
+        print(f"[ScanLabel] Vision extraction error: {exc}")
+        extracted = {
+            "product_name": "Scanned Product",
+            "brand":        "Unknown",
+            "ingredients":  "Unable to read — poor lighting or label not visible",
+            "allergens":    [],
+        }
+
+    yield ev.label_scan_result("orchestrator", {
+        "product_name": extracted.get("product_name", "Unknown"),
+        "brand":        extracted.get("brand",        "Unknown"),
+        "ingredients":  extracted.get("ingredients",  ""),
+        "allergens":    extracted.get("allergens",    []),
+    })
+
+    # Build a Recipe Chemist scenario from the extracted data
+    product  = extracted.get("product_name", "scanned product")
+    brand    = extracted.get("brand",        "unknown brand")
+    ingr     = extracted.get("ingredients",  "")
+    scenario_text = (
+        f"Live label scan — clean-label reformulation request for: "
+        f"{product} by {brand}. "
+        f"Current ingredient list: {ingr}. "
+        f"Identify every synthetic, artificial, or highly processed ingredient. "
+        f"Propose natural clean-label replacements with cost delta and functional impact analysis. "
+        f"Flag any CFIA or Costco clean-label compliance concerns."
+    )
+
+    factory_state = load_factory_state()
+    async for chunk in orchestrator.run(
+        scenario_text,
+        factory_state,
+        image_base64,
+        "image/jpeg",
+        _start_time=t0,
+    ):
+        yield chunk
+
+
+@app.post("/api/scan-label")
+async def scan_label(req: ScanLabelRequest):
+    if not req.image:
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"error": "No image provided"}, status_code=400)
+
+    async def stream():
+        async for chunk in _process_label_scan(req.image):
             yield chunk
 
     return StreamingResponse(stream(), media_type="text/event-stream", headers=_SSE_HEADERS)

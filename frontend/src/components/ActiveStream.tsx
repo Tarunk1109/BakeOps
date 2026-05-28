@@ -2,7 +2,7 @@ import { useRef, useEffect, useState, useMemo, useCallback } from "react";
 import {
   Wrench, ShieldAlert, FlaskConical, Network,
   ArrowRight, Zap, ChevronDown, ChevronRight as ChevronRightSmall,
-  Volume2, VolumeX,
+  Volume2, VolumeX, Camera, CheckCircle2,
 } from "lucide-react";
 import { useAgentStore } from "../store/agentStore";
 import type { StreamEntry } from "../store/agentStore";
@@ -511,6 +511,105 @@ function _oneLiner(output: Record<string, unknown>): string {
   return "Analysis complete.";
 }
 
+// ─── LabelScanCard ────────────────────────────────────────────────────────────
+function LabelScanCard() {
+  const labelScan = useAgentStore((s) => s.labelScan);
+  if (!labelScan) return null;
+
+  return (
+    <div
+      className="fade-up rounded-lg overflow-hidden"
+      style={{
+        borderLeft: "2px solid #A78BFA",
+        paddingLeft: 12,
+        background: "rgba(167,139,250,0.06)",
+        border: "1px solid rgba(167,139,250,0.14)",
+        borderLeftWidth: 2,
+        borderLeftColor: "#A78BFA",
+        padding: "12px 14px",
+      }}
+    >
+      <div className="flex items-center gap-2 mb-2">
+        <Camera size={10} style={{ color: "#A78BFA" }} strokeWidth={1.5} />
+        <span className="font-mono uppercase tracking-widest" style={{ fontSize: 9, color: "#A78BFA" }}>
+          Label Scanner
+        </span>
+        {labelScan.scanning && (
+          <span className="font-mono" style={{ fontSize: 9, color: "var(--paper-tertiary)", marginLeft: "auto" }}>
+            Reading…
+          </span>
+        )}
+      </div>
+
+      {labelScan.scanning ? (
+        <p className="font-mono stream-cursor" style={{ fontSize: 11, color: "var(--paper-tertiary)" }}>
+          Analyzing label with computer vision
+        </p>
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          <div>
+            <span className="font-sans font-semibold" style={{ fontSize: 14, color: "var(--paper-primary)", letterSpacing: "-0.01em" }}>
+              {labelScan.product_name}
+            </span>
+            {labelScan.brand && labelScan.brand !== "Unknown" && (
+              <span className="font-mono ml-2" style={{ fontSize: 10, color: "var(--paper-tertiary)" }}>
+                by {labelScan.brand}
+              </span>
+            )}
+          </div>
+          {labelScan.ingredients && (
+            <p className="font-sans" style={{ fontSize: 11, color: "var(--paper-tertiary)", lineHeight: 1.6 }}>
+              {labelScan.ingredients.length > 200
+                ? labelScan.ingredients.slice(0, 200) + "…"
+                : labelScan.ingredients}
+            </p>
+          )}
+          {labelScan.allergens?.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-0.5">
+              {labelScan.allergens.map((a, i) => (
+                <span key={i} className="font-mono px-1.5 py-0.5 rounded-sm"
+                  style={{ fontSize: 9, background: "rgba(185,28,28,0.1)", color: "#F87171", border: "1px solid rgba(185,28,28,0.2)" }}>
+                  ⚠ {a}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── TelegramBadge ────────────────────────────────────────────────────────────
+function TelegramBadge() {
+  const alertSent = useAgentStore((s) => s.alertSent);
+  if (!alertSent) return null;
+
+  const ts = (() => {
+    try {
+      return new Date(alertSent.timestamp).toLocaleTimeString("en-CA", { hour12: false });
+    } catch { return ""; }
+  })();
+
+  return (
+    <div
+      className="flex items-center gap-2 fade-up"
+      style={{
+        padding: "8px 12px",
+        background: "rgba(21,128,61,0.06)",
+        border: "1px solid rgba(21,128,61,0.14)",
+        borderRadius: 6,
+      }}
+    >
+      <CheckCircle2 size={11} style={{ color: "#4ADE80", flexShrink: 0 }} strokeWidth={1.5} />
+      <span className="font-mono" style={{ fontSize: 10, color: "#4ADE80" }}>
+        Alert delivered to Plant Manager via Telegram
+        {ts && <span style={{ color: "var(--paper-tertiary)", marginLeft: 6 }}>· {ts}</span>}
+      </span>
+    </div>
+  );
+}
+
 // ─── ActiveStream ─────────────────────────────────────────────────────────────
 export default function ActiveStream() {
   const entries      = useAgentStore((s) => s.streamEntries);
@@ -518,6 +617,7 @@ export default function ActiveStream() {
   const scenarioName = useAgentStore((s) => s.scenarioName);
   const isRunning    = useAgentStore((s) => s.isRunning);
   const runCount     = useAgentStore((s) => s.runCount);
+  const labelScan    = useAgentStore((s) => s.labelScan);
   const scrollRef    = useRef<HTMLDivElement>(null);
   const finalCardRef = useRef<HTMLDivElement>(null);
 
@@ -541,7 +641,7 @@ export default function ActiveStream() {
     return () => clearTimeout(id);
   }, [finalRec, isRunning]);
 
-  const isEmpty = !isRunning && entries.length === 0 && !finalRec;
+  const isEmpty = !isRunning && entries.length === 0 && !finalRec && !labelScan;
 
   return (
     <div
@@ -588,6 +688,9 @@ export default function ActiveStream() {
           </div>
         )}
 
+        {/* Label scan card — shows while scanning + after extraction */}
+        {labelScan && <LabelScanCard />}
+
         {isRunning && <ThinkingLoader scenario={scenarioName} />}
 
         {entries.map((entry) => (
@@ -599,6 +702,8 @@ export default function ActiveStream() {
             <div ref={finalCardRef}>
               <FinalCard rec={finalRec} runCount={runCount} />
             </div>
+            {/* Telegram delivery badge — appears after FinalCard */}
+            <TelegramBadge />
             <SpeedComparison />
           </>
         )}

@@ -33,6 +33,33 @@ function handleEvent(event: BakeOpsEvent) {
     case "final_recommendation":
       store.setFinalRecommendation(event.data.recommendation as Record<string, unknown>);
       break;
+    case "alert_sent":
+      store.setAlertSent({
+        channel:   (event.data.channel   as string) ?? "telegram",
+        status:    (event.data.status    as string) ?? "delivered",
+        timestamp: (event.data.timestamp as string) ?? new Date().toISOString(),
+      });
+      break;
+    case "label_scan_started":
+      store.setLabelScan({
+        scanning:     true,
+        product_name: "",
+        brand:        "",
+        ingredients:  "",
+        allergens:    [],
+        capturedAt:   new Date().toISOString(),
+      });
+      break;
+    case "label_scan_result":
+      store.setLabelScan({
+        scanning:     false,
+        product_name: (event.data.product_name as string) ?? "Unknown",
+        brand:        (event.data.brand        as string) ?? "Unknown",
+        ingredients:  (event.data.ingredients  as string) ?? "",
+        allergens:    (event.data.allergens    as string[]) ?? [],
+        capturedAt:   new Date().toISOString(),
+      });
+      break;
   }
 }
 

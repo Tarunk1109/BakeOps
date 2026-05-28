@@ -8,7 +8,10 @@ export type EventType =
   | "final_recommendation"
   | "telemetry_update"
   | "scenario_trigger"
-  | "stream_done";
+  | "stream_done"
+  | "alert_sent"
+  | "label_scan_started"
+  | "label_scan_result";
 
 export interface BakeOpsEvent {
   event_type: EventType;

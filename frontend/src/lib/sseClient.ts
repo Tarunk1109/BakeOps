@@ -1,5 +1,24 @@
 import type { BakeOpsEvent, TelemetryData } from "./events";
 
+export async function scanLabel(
+  imageBase64: string,
+  onEvent: (event: BakeOpsEvent) => void,
+  onDone: () => void,
+  onError: (err: Error) => void
+): Promise<void> {
+  try {
+    const response = await fetch("/api/scan-label", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image: imageBase64 }),
+    });
+    if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
+    await _readSSEStream(response.body, onEvent, onDone);
+  } catch (err) {
+    onError(err instanceof Error ? err : new Error(String(err)));
+  }
+}
+
 export async function triggerScenario(
   scenario: string,
   onEvent: (event: BakeOpsEvent) => void,

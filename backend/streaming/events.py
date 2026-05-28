@@ -48,5 +48,19 @@ def stream_done() -> str:
     return _sse({"event_type": "stream_done"})
 
 
+# ── Telegram delivery confirmation ─────────────────────────────────────────────
+def alert_sent(agent_id: str, data: dict) -> str:
+    return _sse(make_event("alert_sent", agent_id, data))
+
+
+# ── Webcam / label-scan events ─────────────────────────────────────────────────
+def label_scan_started(agent_id: str, data: dict) -> str:
+    return _sse(make_event("label_scan_started", agent_id, data))
+
+
+def label_scan_result(agent_id: str, data: dict) -> str:
+    return _sse(make_event("label_scan_result", agent_id, data))
+
+
 def _sse(payload: dict) -> str:
     return f"data: {json.dumps(payload)}\n\n"

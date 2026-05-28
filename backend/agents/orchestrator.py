@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import time
+from datetime import datetime, timezone
 from typing import AsyncGenerator, List
 
 import anthropic
@@ -21,13 +23,33 @@ _AGENT_MAP = {
     "recipe_chemist": recipe_chemist.run,
 }
 
+# ── Scenario title detection for Telegram alert ────────────────────────────────
+_TITLE_PATTERNS: list[tuple[str, str]] = [
+    (r"tunnel oven|heating element|oven.*anomaly|thermal sensor|stonefire.*naan.*line", "Tunnel Oven Anomaly — Line 03"),
+    (r"yeast|lallemand|allocation.*reduc|fermentation facility",                        "Yeast Supplier Crisis — Lallemand Inc."),
+    (r"costco.*clean label|clean label.*costco|calcium propionate|mono.*diglyceride",   "Costco Clean Label Compliance — Croissants"),
+    (r"mold|recall|premature.*mold|shelf life.*trend",                                  "⚠️ Stonefire Naan Recall Risk"),
+    (r"live label|webcam|label scan|scanned product",                                   "Live Label Scan — Recipe Chemist"),
+]
+
+
+def _infer_title(scenario: str) -> str:
+    s = scenario.lower()
+    for pattern, title in _TITLE_PATTERNS:
+        if re.search(pattern, s):
+            return title
+    return "BakeOps Incident Alert"
+
 
 async def run(
     scenario: str,
     factory_state: dict,
     image_b64: str = "",
     image_media_type: str = "image/jpeg",
+    _start_time: float | None = None,
 ) -> AsyncGenerator[str, None]:
+    t0 = _start_time or time.monotonic()
+
     yield events.agent_started(AGENT_ID, AGENT_NAME)
 
     client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
@@ -130,6 +152,35 @@ async def run(
 
     yield events.final_recommendation(AGENT_ID, final_rec)
     yield events.agent_completed(AGENT_ID, {"final_recommendation": final_rec})
+
+    # ── Step 4: Send Telegram alert ────────────────────────────────────────────
+    elapsed = int(time.monotonic() - t0)
+    try:
+        from services.telegram import send_alert, _is_configured
+        if _is_configured():
+            sr = primary_rec
+            delivered = await send_alert(
+                scenario_title     = _infer_title(scenario),
+                diagnosis          = str(sr.get("diagnosis") or sr.get("disruption_summary") or "See full analysis"),
+                recommended_action = str(sr.get("recommended_action", "See full analysis")),
+                cost_of_action     = f"${int(sr.get('cost_of_action_usd', 0)):,}"
+                                     if sr.get("cost_of_action_usd") is not None
+                                     else str(sr.get("estimated_cost_impact_usd", "N/A")),
+                cost_of_inaction   = f"${int(sr.get('cost_of_inaction_usd', 0)):,}"
+                                     if sr.get("cost_of_inaction_usd") is not None
+                                     else str(sr.get("estimated_cost_of_inaction_usd", "N/A")),
+                confidence         = float(sr.get("confidence", 0.85)),
+                response_time_seconds = elapsed,
+            )
+            if delivered:
+                yield events.alert_sent(AGENT_ID, {
+                    "channel":   "telegram",
+                    "status":    "delivered",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                })
+    except Exception as exc:
+        print(f"[Orchestrator] Telegram step error (non-fatal): {exc}")
+
     yield events.stream_done()
 
 
@@ -149,6 +200,6 @@ def _parse_route(routing_text: str, scenario: str) -> List[str]:
         chosen.append("maintenance_prophet")
     if any(w in lower for w in ["wheat", "flour", "supplier", "shortage", "supply", "ingredient", "inventory", "procurement"]):
         chosen.append("supply_sentinel")
-    if any(w in lower for w in ["recipe", "reformulat", "label", "ingredient list", "clean", "additive", "preservative", "synthetic"]):
+    if any(w in lower for w in ["recipe", "reformulat", "label", "ingredient list", "clean", "additive", "preservative", "synthetic", "webcam", "scanned"]):
         chosen.append("recipe_chemist")
     return chosen or ["maintenance_prophet"]

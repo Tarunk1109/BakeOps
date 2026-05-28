@@ -30,6 +30,21 @@ export interface NfcTrigger {
   impact: string;
 }
 
+export interface LabelScan {
+  scanning: boolean;
+  product_name: string;
+  brand: string;
+  ingredients: string;
+  allergens: string[];
+  capturedAt: string;
+}
+
+export interface AlertSent {
+  channel: string;
+  status: string;
+  timestamp: string;
+}
+
 interface MetricSeries {
   value: number;
   history: number[];
@@ -45,6 +60,8 @@ interface StoreState {
   nfcTrigger: NfcTrigger | null;
   scenarioStartTime: number | null;
   activeScenarioType: ScenarioType;
+  labelScan: LabelScan | null;
+  alertSent: AlertSent | null;
   metrics: {
     oee: MetricSeries;
     waste: MetricSeries;
@@ -63,6 +80,8 @@ interface StoreState {
   setNfcTrigger: (t: NfcTrigger | null) => void;
   setScenarioStartTime: (t: number | null) => void;
   setActiveScenarioType: (t: ScenarioType) => void;
+  setLabelScan: (scan: LabelScan | null) => void;
+  setAlertSent: (alert: AlertSent | null) => void;
   reset: () => void;
   pushTelemetry: (data: TelemetryData) => void;
 }
@@ -97,6 +116,8 @@ export const useAgentStore = create<StoreState>((set) => ({
   nfcTrigger: null,
   scenarioStartTime: null,
   activeScenarioType: null,
+  labelScan: null,
+  alertSent: null,
   metrics: {
     oee:         makeMetric(83.4,  4),
     waste:       makeMetric(3.1,   0.8),
@@ -147,6 +168,8 @@ export const useAgentStore = create<StoreState>((set) => ({
   setNfcTrigger: (t) => set({ nfcTrigger: t }),
   setScenarioStartTime: (t) => set({ scenarioStartTime: t }),
   setActiveScenarioType: (t) => set({ activeScenarioType: t }),
+  setLabelScan: (scan) => set({ labelScan: scan }),
+  setAlertSent: (alert) => set({ alertSent: alert }),
 
   reset: () =>
     set((s) => ({
@@ -159,6 +182,8 @@ export const useAgentStore = create<StoreState>((set) => ({
       nfcTrigger: null,
       scenarioStartTime: Date.now(),
       activeScenarioType: null,
+      labelScan: null,
+      alertSent: null,
     })),
 
   pushTelemetry: (data) =>
