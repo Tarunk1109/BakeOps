@@ -9,6 +9,15 @@ export default defineConfig({
       "/api": {
         target: "http://localhost:8000",
         changeOrigin: true,
+        // SSE needs infinite timeout — without this Vite drops long-lived
+        // connections and the backend removes the queue from _broadcast_queues
+        timeout: 0,
+        proxyTimeout: 0,
+        configure: (proxy) => {
+          proxy.on("proxyReq", (proxyReq) => {
+            proxyReq.setTimeout(0);
+          });
+        },
       },
     },
   },

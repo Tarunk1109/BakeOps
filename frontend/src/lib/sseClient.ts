@@ -68,32 +68,82 @@ async function _readSSEStream(
 }
 
 export function subscribeTelemetry(onData: (data: TelemetryData) => void): () => void {
-  const es = new EventSource("/api/telemetry");
-  es.onmessage = (e) => {
-    try {
-      const event = JSON.parse(e.data) as BakeOpsEvent;
-      if (event.event_type === "telemetry_update") {
-        onData(event.data as unknown as TelemetryData);
-      }
-    } catch { /* skip */ }
+  let es: EventSource | null = null;
+  let closed = false;
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function connect() {
+    if (closed) return;
+    es = new EventSource("/api/telemetry");
+    es.onmessage = (e) => {
+      try {
+        const event = JSON.parse(e.data) as BakeOpsEvent;
+        if (event.event_type === "telemetry_update") {
+          onData(event.data as unknown as TelemetryData);
+        }
+      } catch { /* skip */ }
+    };
+    es.onerror = () => {
+      es?.close();
+      es = null;
+      if (!closed) retryTimer = setTimeout(connect, 2000);
+    };
+  }
+
+  connect();
+  return () => {
+    closed = true;
+    if (retryTimer) clearTimeout(retryTimer);
+    es?.close();
   };
-  return () => es.close();
 }
 
 export function subscribeToTriggers(
   onTrigger: (scenarioId: string, scenarioText: string) => void
 ): () => void {
-  const es = new EventSource("/api/events");
-  es.onmessage = (e) => {
-    try {
-      const event = JSON.parse(e.data) as BakeOpsEvent;
-      if (event.event_type === "scenario_trigger") {
-        onTrigger(
-          event.data.scenario_id as string,
-          event.data.scenario_text as string
-        );
-      }
-    } catch { /* skip */ }
+  let es: EventSource | null = null;
+  let closed = false;
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function connect() {
+    if (closed) return;
+    console.log("[BakeOps] /api/events connecting…");
+    es = new EventSource("/api/events");
+
+    es.onopen = () => {
+      console.log("[BakeOps] /api/events connected ✓");
+    };
+
+    es.onmessage = (e) => {
+      // Ignore keepalive comments (they arrive as empty data)
+      if (!e.data || e.data.trim() === "") return;
+      try {
+        const event = JSON.parse(e.data) as BakeOpsEvent;
+        if (event.event_type === "scenario_trigger") {
+          console.log("[BakeOps] scenario_trigger received:", event.data.scenario_id);
+          onTrigger(
+            event.data.scenario_id as string,
+            event.data.scenario_text as string
+          );
+        }
+      } catch { /* skip malformed */ }
+    };
+
+    es.onerror = () => {
+      console.warn("[BakeOps] /api/events dropped — reconnecting in 1.5s");
+      es?.close();
+      es = null;
+      // Fast reconnect so NFC taps are never missed for long
+      if (!closed) retryTimer = setTimeout(connect, 1500);
+    };
+  }
+
+  connect();
+
+  return () => {
+    closed = true;
+    if (retryTimer) clearTimeout(retryTimer);
+    es?.close();
+    es = null;
   };
-  return () => es.close();
 }
