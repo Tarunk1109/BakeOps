@@ -2,11 +2,10 @@ import { useRef, useEffect, useState, useMemo, useCallback } from "react";
 import {
   Wrench, ShieldAlert, FlaskConical, Network,
   ArrowRight, Zap, ChevronDown, ChevronRight as ChevronRightSmall,
-  Volume2, VolumeX, Camera, CheckCircle2, Send,
+  Volume2, VolumeX, Camera, CheckCircle2,
 } from "lucide-react";
 import { useAgentStore } from "../store/agentStore";
 import type { StreamEntry, ChatMessage } from "../store/agentStore";
-import { sendChat } from "../lib/sseClient";
 import SpeedComparison from "./SpeedComparison";
 
 // ─── Dark-panel agent colors ──────────────────────────────────────────────────
@@ -611,7 +610,7 @@ function TelegramBadge() {
   );
 }
 
-// ─── ChatPanel ────────────────────────────────────────────────────────────────
+// ─── ChatPanel (display-only — input is in the CommandBar) ───────────────────
 function ChatBubble({ msg }: { msg: ChatMessage }) {
   const isUser = msg.role === "user";
   return (
@@ -621,19 +620,13 @@ function ChatBubble({ msg }: { msg: ChatMessage }) {
           <Network size={10} style={{ color: "#FAFAF7" }} strokeWidth={1.5} />
         </div>
       )}
-      <div
-        style={{
-          maxWidth: "82%",
-          padding: "8px 12px",
-          borderRadius: isUser ? "10px 10px 2px 10px" : "10px 10px 10px 2px",
-          background: isUser
-            ? "rgba(180,83,9,0.18)"
-            : "rgba(255,255,255,0.06)",
-          border: isUser
-            ? "1px solid rgba(180,83,9,0.28)"
-            : "1px solid rgba(255,255,255,0.08)",
-        }}
-      >
+      <div style={{
+        maxWidth: "84%",
+        padding: "8px 12px",
+        borderRadius: isUser ? "10px 10px 2px 10px" : "10px 10px 10px 2px",
+        background: isUser ? "rgba(180,83,9,0.18)" : "rgba(255,255,255,0.06)",
+        border: isUser ? "1px solid rgba(180,83,9,0.28)" : "1px solid rgba(255,255,255,0.08)",
+      }}>
         <p
           className={`font-sans leading-relaxed ${!isUser && msg.streaming ? "stream-cursor" : ""}`}
           style={{ fontSize: 12, color: isUser ? "#FCE9C9" : "var(--paper-secondary)", whiteSpace: "pre-wrap" }}
@@ -645,120 +638,19 @@ function ChatBubble({ msg }: { msg: ChatMessage }) {
   );
 }
 
-function ChatPanel({ rec, scenario }: { rec: Record<string, unknown>; scenario: string }) {
-  const chatMessages  = useAgentStore((s) => s.chatMessages);
-  const isChatting    = useAgentStore((s) => s.isChatting);
-  const addMsg        = useAgentStore((s) => s.addChatMessage);
-  const appendToken   = useAgentStore((s) => s.appendChatToken);
-  const finishMsg     = useAgentStore((s) => s.finishChatMessage);
-  const setIsChatting = useAgentStore((s) => s.setIsChatting);
-
-  const [input, setInput] = useState("");
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const inputRef  = useRef<HTMLInputElement>(null);
-
-  // Auto-scroll chat as tokens arrive
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatMessages]);
-
-  const submit = () => {
-    const q = input.trim();
-    if (!q || isChatting) return;
-    setInput("");
-
-    // Add user message
-    addMsg({ role: "user", content: q, timestamp: new Date().toISOString() });
-
-    // Add empty streaming assistant message
-    addMsg({ role: "assistant", content: "", timestamp: new Date().toISOString(), streaming: true });
-
-    setIsChatting(true);
-
-    // Build history from prior messages (exclude the streaming placeholder we just added)
-    const history = chatMessages.map((m) => ({ role: m.role, content: m.content }));
-
-    sendChat(
-      q,
-      rec,
-      scenario,
-      history,
-      (token) => appendToken(token),
-      ()      => { finishMsg(); setIsChatting(false); },
-      (err)   => { console.error(err); finishMsg(); setIsChatting(false); },
-    );
-  };
+function ChatPanel() {
+  const chatMessages = useAgentStore((s) => s.chatMessages);
+  if (chatMessages.length === 0) return null;
 
   return (
-    <div
-      className="flex flex-col"
-      style={{
-        borderTop: "1px solid var(--border-ink)",
-        marginTop: 4,
-      }}
-    >
-      {/* Header */}
-      <div className="flex items-center gap-2 px-1 py-3">
+    <div className="flex flex-col gap-2.5" style={{ borderTop: "1px solid var(--border-ink)", paddingTop: 16 }}>
+      <div className="flex items-center gap-2">
         <div className="w-1 h-1 rounded-full" style={{ background: "var(--accent)" }} />
         <span className="font-mono uppercase tracking-[0.18em]" style={{ fontSize: 9, color: "var(--paper-tertiary)" }}>
-          Ask a follow-up
+          Follow-up
         </span>
       </div>
-
-      {/* Messages */}
-      {chatMessages.length > 0 && (
-        <div className="flex flex-col gap-2.5 mb-3">
-          {chatMessages.map((msg, i) => (
-            <ChatBubble key={i} msg={msg} />
-          ))}
-          <div ref={bottomRef} />
-        </div>
-      )}
-
-      {/* Input row */}
-      <div
-        className="flex items-center gap-2"
-        style={{
-          background: "rgba(255,255,255,0.04)",
-          border: "1px solid rgba(255,255,255,0.08)",
-          borderRadius: 8,
-          padding: "6px 10px",
-        }}
-      >
-        <input
-          ref={inputRef}
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); } }}
-          disabled={isChatting}
-          placeholder="Ask about this recommendation…"
-          className="flex-1 bg-transparent border-none outline-none font-sans"
-          style={{
-            fontSize: 12,
-            color: "var(--paper-primary)",
-            caretColor: "var(--accent)",
-          }}
-        />
-        <button
-          onClick={submit}
-          disabled={!input.trim() || isChatting}
-          style={{
-            color: (!input.trim() || isChatting) ? "var(--paper-tertiary)" : "var(--accent)",
-            lineHeight: 0,
-            cursor: (!input.trim() || isChatting) ? "not-allowed" : "pointer",
-            transition: "color 0.15s",
-          }}
-        >
-          {isChatting
-            ? <span className="pulse-dot font-mono" style={{ fontSize: 11, color: "var(--accent)" }}>···</span>
-            : <Send size={12} strokeWidth={1.5} />}
-        </button>
-      </div>
-
-      <p className="font-mono text-center mt-2" style={{ fontSize: 9, color: "var(--paper-tertiary)", opacity: 0.5 }}>
-        Context-aware · knows the full recommendation
-      </p>
+      {chatMessages.map((msg, i) => <ChatBubble key={i} msg={msg} />)}
     </div>
   );
 }
@@ -772,7 +664,7 @@ export default function ActiveStream() {
   const runCount     = useAgentStore((s) => s.runCount);
   const labelScan    = useAgentStore((s) => s.labelScan);
   const isChatting   = useAgentStore((s) => s.isChatting);
-  const chatMessages = useAgentStore((s) => s.chatMessages);
+  const chatMessages = useAgentStore((s) => s.chatMessages); // for scroll tracking
   const scrollRef    = useRef<HTMLDivElement>(null);
   const finalCardRef = useRef<HTMLDivElement>(null);
 
@@ -860,11 +752,8 @@ export default function ActiveStream() {
             {/* Telegram delivery badge — appears after FinalCard */}
             <TelegramBadge />
             <SpeedComparison />
-            {/* Follow-up chat — always shown after recommendation */}
-            <ChatPanel
-              rec={finalRec}
-              scenario={(finalRec.scenario as string) || scenarioName}
-            />
+            {/* Follow-up chat history — input is in the CommandBar below */}
+            <ChatPanel />
           </>
         )}
       </div>
