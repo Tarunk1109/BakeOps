@@ -78,6 +78,19 @@ async def run(
     chosen_agents = _parse_route(routing_text, scenario)
     yield events.orchestrator_routing(AGENT_ID, routing_text, chosen_agents)
 
+    # If no agents selected (greeting / nonsense input) — stop cleanly
+    if not chosen_agents:
+        yield events.final_recommendation(AGENT_ID, {
+            "summary": routing_text.strip(),
+            "specialist_recommendation": {},
+            "all_specialist_outputs": [],
+            "scenario": scenario,
+            "no_route": True,
+        })
+        yield events.agent_completed(AGENT_ID, {})
+        yield events.stream_done()
+        return
+
     # Step 2: Run specialist agents (parallel if multiple)
     specialist_outputs: List[dict] = []
 
@@ -206,4 +219,5 @@ def _parse_route(routing_text: str, scenario: str) -> List[str]:
         chosen.append("supply_sentinel")
     if any(w in lower for w in ["recipe", "reformulat", "label", "ingredient list", "clean", "additive", "preservative", "synthetic", "webcam", "scanned"]):
         chosen.append("recipe_chemist")
-    return chosen or ["maintenance_prophet"]
+    # Return empty list — caller handles the no-route case
+    return chosen

@@ -130,6 +130,7 @@ export default function CommandBar() {
 
   // ── Unified Enter handler ─────────────────────────────────────────────────
   const handleEnter = () => {
+    if (!canSubmit) return;           // blocks Enter key too, not just the button
     if (chatMode) submitChat();
     else {
       const file = fileRef.current?.files?.[0];
