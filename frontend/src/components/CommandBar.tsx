@@ -165,8 +165,16 @@ export default function CommandBar() {
     inputRef.current?.focus();
   };
 
+  // ── Scenario validation ───────────────────────────────────────────────────
+  const GREETINGS = /^(hi|hello|hey|howdy|yo|sup|hiya|greetings|good\s*(morning|afternoon|evening)|what'?s\s*up|helo|hii+|heya|test|testing|ok|okay)[.!?\s]*$/i;
+  const scenarioTooShort = !chatMode && text.trim().length < 20;
+  const scenarioIsGreeting = !chatMode && GREETINGS.test(text.trim());
+  const scenarioInvalid = scenarioTooShort || scenarioIsGreeting;
+
   const isDisabled = chatMode ? isChatting : store.isRunning;
-  const canSubmit  = chatMode ? (!!text.trim() && !isChatting) : (!!text.trim() && !store.isRunning);
+  const canSubmit  = chatMode
+    ? (!!text.trim() && !isChatting)
+    : (!!text.trim() && !store.isRunning && !scenarioInvalid);
 
   return (
     <>
@@ -326,10 +334,16 @@ export default function CommandBar() {
         {/* Bottom hint */}
         <span
           className="absolute font-mono"
-          style={{ fontSize: 9, color: chatMode ? "rgba(255,255,255,0.2)" : "var(--ink-muted)", bottom: 7, right: 24, pointerEvents: "none" }}
+          style={{ fontSize: 9, bottom: 7, right: 24, pointerEvents: "none",
+            color: scenarioIsGreeting ? "var(--status-warning)" : scenarioTooShort && text.trim().length > 0 ? "var(--ink-muted)" : chatMode ? "rgba(255,255,255,0.2)" : "var(--ink-muted)"
+          }}
         >
           {chatMode
-            ? "Chat mode · Knows the full recommendation · Click 'New scenario' to reset"
+            ? "Chat mode · knows the full recommendation · click 'New scenario' to reset"
+            : scenarioIsGreeting
+            ? "That looks like a greeting — describe an actual factory scenario to trigger agents"
+            : scenarioTooShort && text.trim().length > 0
+            ? `Scenario too short (${text.trim().length}/20 chars min) — pick a preset or describe the problem`
             : "Tap NFC · scan label · or pick a preset above"}
         </span>
       </div>
