@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Paperclip, ChevronDown, Camera, RotateCcw, MessageCircle } from "lucide-react";
+import { Send, Paperclip, ChevronDown, Camera, RotateCcw, MessageCircle, Mic, MicOff } from "lucide-react";
 import { triggerScenario, triggerWithImage, scanLabel, sendChat } from "../lib/sseClient";
 import { useAgentStore } from "../store/agentStore";
 import type { BakeOpsEvent } from "../lib/events";
@@ -62,9 +62,12 @@ export default function CommandBar() {
   const [showUpload, setShowUpload]     = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [showScanner, setShowScanner]   = useState(false);
-  const fileRef     = useRef<HTMLInputElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const inputRef    = useRef<HTMLInputElement>(null);
+  const [isListening, setIsListening]   = useState(false);
+  const [interimText, setInterimText]   = useState("");
+  const fileRef        = useRef<HTMLInputElement>(null);
+  const dropdownRef    = useRef<HTMLDivElement>(null);
+  const inputRef       = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
 
   const store       = useAgentStore();
   const finalRec    = useAgentStore((s) => s.finalRecommendation);
@@ -127,6 +130,67 @@ export default function CommandBar() {
       (err)   => { console.error(err); finishMsg(); setChat(false); },
     );
   };
+
+  // ── Voice input ───────────────────────────────────────────────────────────
+  const toggleVoice = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) {
+      alert("Voice input requires Chrome or Safari.");
+      return;
+    }
+
+    const recognition: SpeechRecognition = new SR();
+    recognition.continuous      = true;   // keep listening until user stops
+    recognition.interimResults  = true;
+    recognition.lang            = "en-CA";
+    recognitionRef.current      = recognition;
+
+    recognition.onstart = () => setIsListening(true);
+
+    recognition.onresult = (e: SpeechRecognitionEvent) => {
+      let interim = "";
+      let final   = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) final += t;
+        else interim += t;
+      }
+      if (final) {
+        setText((prev) => (prev + " " + final).trim());
+        setInterimText("");
+      } else {
+        setInterimText(interim);
+      }
+    };
+
+    recognition.onerror = (e: SpeechRecognitionErrorEvent) => {
+      if (e.error !== "no-speech" && e.error !== "aborted") {
+        console.warn("Speech recognition error:", e.error);
+      }
+      setIsListening(false);
+      setInterimText("");
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+      setInterimText("");
+    };
+
+    recognition.start();
+  };
+
+  // Stop listening when agents start running
+  useEffect(() => {
+    if ((store.isRunning || isChatting) && isListening) {
+      recognitionRef.current?.stop();
+    }
+  }, [store.isRunning, isChatting, isListening]);
 
   // ── Unified Enter handler ─────────────────────────────────────────────────
   const handleEnter = () => {
@@ -199,26 +263,50 @@ export default function CommandBar() {
           <span className="font-mono" style={{ fontSize: 14, color: "var(--ink-muted)", flexShrink: 0 }}>⌘</span>
         )}
 
-        {/* Input */}
-        <input
-          ref={inputRef}
-          type="text"
-          className="flex-1 bg-transparent border-none outline-none font-sans"
-          style={{
-            fontSize: 14,
-            color: chatMode ? "var(--paper-primary)" : "var(--ink-primary)",
-            caretColor: "var(--accent)",
-          }}
-          placeholder={
-            chatMode
-              ? "Ask a follow-up about this recommendation…"
-              : "Trigger scenario or describe a factory event…"
-          }
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleEnter(); } }}
-          disabled={isDisabled}
-        />
+        {/* Input — shows interim speech text while listening */}
+        <div className="flex-1 relative flex items-center">
+          <input
+            ref={inputRef}
+            type="text"
+            className="w-full bg-transparent border-none outline-none font-sans"
+            style={{
+              fontSize: 14,
+              color: chatMode ? "var(--paper-primary)" : "var(--ink-primary)",
+              caretColor: "var(--accent)",
+              // Listening ring
+              ...(isListening ? {
+                background: chatMode ? "rgba(180,83,9,0.06)" : "rgba(180,83,9,0.04)",
+                borderRadius: 6,
+                padding: "2px 8px",
+              } : {}),
+            }}
+            placeholder={
+              isListening
+                ? "Listening… speak your scenario"
+                : chatMode
+                ? "Ask a follow-up about this recommendation…"
+                : "Trigger scenario or describe a factory event…"
+            }
+            value={text}
+            onChange={(e) => { if (!isListening) setText(e.target.value); }}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleEnter(); } }}
+            disabled={isDisabled}
+          />
+          {/* Interim speech overlay */}
+          {isListening && interimText && (
+            <span
+              className="absolute font-sans pointer-events-none"
+              style={{
+                left: 8, right: 8,
+                fontSize: 14,
+                color: chatMode ? "rgba(250,250,247,0.45)" : "rgba(14,14,16,0.35)",
+                overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis",
+              }}
+            >
+              {text ? text + " " : ""}{interimText}
+            </span>
+          )}
+        </div>
 
         {/* Right controls */}
         <div className="flex items-center gap-2 shrink-0">
@@ -312,6 +400,35 @@ export default function CommandBar() {
             </>
           )}
 
+          {/* Mic button — works in both modes */}
+          <button
+            onClick={toggleVoice}
+            disabled={isDisabled}
+            title={isListening ? "Stop listening" : "Voice input"}
+            className="flex items-center justify-center"
+            style={{
+              width: 32, height: 32,
+              borderRadius: 8,
+              border: isListening
+                ? "1px solid rgba(180,83,9,0.5)"
+                : `1px solid ${chatMode ? "rgba(255,255,255,0.1)" : "var(--border-soft)"}`,
+              background: isListening
+                ? "rgba(180,83,9,0.12)"
+                : "transparent",
+              color: isListening
+                ? "var(--accent)"
+                : chatMode ? "var(--paper-tertiary)" : "var(--ink-tertiary)",
+              cursor: isDisabled ? "not-allowed" : "pointer",
+              transition: "all 0.15s ease",
+              flexShrink: 0,
+              animation: isListening ? "live-pulse 1.2s ease-in-out infinite" : "none",
+            }}
+          >
+            {isListening
+              ? <MicOff size={13} strokeWidth={1.5} />
+              : <Mic     size={13} strokeWidth={1.5} />}
+          </button>
+
           {/* Submit / Send */}
           <button
             onClick={handleEnter}
@@ -339,13 +456,15 @@ export default function CommandBar() {
             color: scenarioIsGreeting ? "var(--status-warning)" : scenarioTooShort && text.trim().length > 0 ? "var(--ink-muted)" : chatMode ? "rgba(255,255,255,0.2)" : "var(--ink-muted)"
           }}
         >
-          {chatMode
+          {isListening
+            ? "🎙 Listening — speak the scenario, then click mic to stop"
+            : chatMode
             ? "Chat mode · knows the full recommendation · click 'New scenario' to reset"
             : scenarioIsGreeting
             ? "That looks like a greeting — describe an actual factory scenario to trigger agents"
             : scenarioTooShort && text.trim().length > 0
             ? `Scenario too short (${text.trim().length}/20 chars min) — pick a preset or describe the problem`
-            : "Tap NFC · scan label · or pick a preset above"}
+            : "Tap NFC · 🎙 voice · scan label · or pick a preset above"}
         </span>
       </div>
     </>
