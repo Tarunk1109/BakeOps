@@ -86,6 +86,56 @@ async function _readSSEStream(
   onDone();
 }
 
+export async function sendChat(
+  question: string,
+  recommendation: Record<string, unknown>,
+  scenario: string,
+  history: { role: "user" | "assistant"; content: string }[],
+  onToken: (token: string) => void,
+  onDone: (response: string) => void,
+  onError: (err: Error) => void
+): Promise<void> {
+  try {
+    const response = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question, recommendation, scenario, history }),
+    });
+    if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
+
+    const reader  = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let full   = "";
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const raw = line.slice(6).trim();
+        if (!raw) continue;
+        try {
+          const evt = JSON.parse(raw);
+          if (evt.event_type === "chat_token") {
+            const tok = evt.data?.token as string ?? "";
+            full += tok;
+            onToken(tok);
+          } else if (evt.event_type === "chat_done") {
+            onDone(full);
+          }
+        } catch { /* skip */ }
+      }
+    }
+    onDone(full);
+  } catch (err) {
+    onError(err instanceof Error ? err : new Error(String(err)));
+  }
+}
+
 export function subscribeTelemetry(onData: (data: TelemetryData) => void): () => void {
   let es: EventSource | null = null;
   let closed = false;

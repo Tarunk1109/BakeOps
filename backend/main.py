@@ -408,6 +408,91 @@ async def telemetry():
     return StreamingResponse(stream(), media_type="text/event-stream", headers=_SSE_HEADERS)
 
 
+# ─── Follow-up chat ──────────────────────────────────────────────────────────
+_CHAT_SYSTEM = """You are BakeOps Assistant — an expert AI advisor embedded in a bakery operations command center at FGF Brands (North York, Toronto).
+
+A specialist agent team has already analysed a factory scenario and produced a structured recommendation. You are now answering follow-up questions from the plant manager about that recommendation.
+
+Guidelines:
+- Be concise and direct — plant managers are busy; no fluff
+- Reference specific numbers from the recommendation when relevant (costs, timelines, confidence)
+- If asked about something not covered by the recommendation, reason from your bakery/food-science expertise
+- Use plain language; avoid jargon unless the user uses it first
+- If a question is ambiguous, answer the most likely interpretation and note the assumption
+- Keep answers under 4 sentences unless a detailed breakdown is genuinely needed"""
+
+class ChatRequest(BaseModel):
+    question: str
+    recommendation: dict
+    scenario: str
+    history: list[dict] = []   # prior {role, content} pairs
+
+
+@app.post("/api/chat")
+async def chat_endpoint(req: ChatRequest):
+    async def stream():
+        aclient = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
+
+        # Build context block from the recommendation
+        sr = req.recommendation.get("specialist_recommendation", {})
+        context = (
+            f"SCENARIO: {req.scenario}\n\n"
+            f"RECOMMENDATION SUMMARY:\n{req.recommendation.get('summary', '')}\n\n"
+            f"STRUCTURED FINDINGS:\n"
+            f"  Diagnosis: {sr.get('diagnosis') or sr.get('disruption_summary', 'N/A')}\n"
+            f"  Recommended Action: {sr.get('recommended_action', 'N/A')}\n"
+            f"  Cost of Action: ${sr.get('cost_of_action_usd', 'N/A'):,}" if isinstance(sr.get('cost_of_action_usd'), (int, float)) else
+            f"  Cost of Action: {sr.get('cost_of_action_usd', 'N/A')}\n"
+        )
+        # Patch: rebuild cleanly
+        cost_action   = f"${int(sr['cost_of_action_usd']):,}"   if isinstance(sr.get('cost_of_action_usd'),   (int,float)) else str(sr.get('cost_of_action_usd',   'N/A'))
+        cost_inaction = f"${int(sr['cost_of_inaction_usd']):,}" if isinstance(sr.get('cost_of_inaction_usd'), (int,float)) else str(sr.get('cost_of_inaction_usd', 'N/A'))
+        context = (
+            f"SCENARIO: {req.scenario}\n\n"
+            f"RECOMMENDATION SUMMARY:\n{req.recommendation.get('summary', '')}\n\n"
+            f"STRUCTURED FINDINGS:\n"
+            f"  Diagnosis: {sr.get('diagnosis') or sr.get('disruption_summary', 'N/A')}\n"
+            f"  Recommended Action: {sr.get('recommended_action', 'N/A')}\n"
+            f"  Cost of Action: {cost_action}\n"
+            f"  Cost of Inaction: {cost_inaction}\n"
+            f"  Confidence: {int(float(sr.get('confidence', 0)) * 100)}%\n"
+        )
+
+        # Build message history
+        messages = []
+        # First message provides the context
+        messages.append({
+            "role": "user",
+            "content": f"Here is the current scenario and recommendation context:\n\n{context}\n\nI have a follow-up question."
+        })
+        messages.append({
+            "role": "assistant",
+            "content": "Understood. I have reviewed the scenario and the specialist team's recommendation. What would you like to know?"
+        })
+        # Prior conversation turns
+        for turn in req.history:
+            messages.append({"role": turn["role"], "content": turn["content"]})
+        # Current question
+        messages.append({"role": "user", "content": req.question})
+
+        yield ev.label_scan_started("chat", {"status": "thinking"})  # reuse as chat_thinking
+
+        response_text = ""
+        async with aclient.messages.stream(
+            model="claude-sonnet-4-6",
+            max_tokens=512,
+            system=_CHAT_SYSTEM,
+            messages=messages,
+        ) as s:
+            async for token in s.text_stream:
+                response_text += token
+                yield ev._sse({"event_type": "chat_token", "data": {"token": token}})
+
+        yield ev._sse({"event_type": "chat_done", "data": {"response": response_text}})
+
+    return StreamingResponse(stream(), media_type="text/event-stream", headers=_SSE_HEADERS)
+
+
 # ─── Scenario replay (eval — hidden) ─────────────────────────────────────────
 @app.get("/api/scenarios/{scenario_id}/replay")
 async def replay(scenario_id: str, runs: int = 3):

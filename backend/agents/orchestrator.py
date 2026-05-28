@@ -143,11 +143,15 @@ async def run(
             synthesis_text += text
             yield events.agent_thinking(AGENT_ID, text)
 
-    primary_rec = specialist_outputs[0].get("recommendation", {}) if specialist_outputs else {}
+    # specialist_outputs[0] is the raw SSE data dict: {"output": {"recommendation": {...}, ...}}
+    raw_output  = specialist_outputs[0] if specialist_outputs else {}
+    inner       = raw_output.get("output", raw_output)           # unwrap the "output" wrapper
+    primary_rec = inner.get("recommendation", inner)             # get the structured rec
     final_rec = {
         "summary": synthesis_text,
         "specialist_recommendation": primary_rec,
         "all_specialist_outputs": specialist_outputs,
+        "scenario": scenario,
     }
 
     yield events.final_recommendation(AGENT_ID, final_rec)

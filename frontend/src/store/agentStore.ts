@@ -45,6 +45,13 @@ export interface AlertSent {
   timestamp: string;
 }
 
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
+  streaming?: boolean;
+}
+
 interface MetricSeries {
   value: number;
   history: number[];
@@ -62,6 +69,8 @@ interface StoreState {
   activeScenarioType: ScenarioType;
   labelScan: LabelScan | null;
   alertSent: AlertSent | null;
+  chatMessages: ChatMessage[];
+  isChatting: boolean;
   metrics: {
     oee: MetricSeries;
     waste: MetricSeries;
@@ -82,6 +91,10 @@ interface StoreState {
   setActiveScenarioType: (t: ScenarioType) => void;
   setLabelScan: (scan: LabelScan | null) => void;
   setAlertSent: (alert: AlertSent | null) => void;
+  addChatMessage: (msg: ChatMessage) => void;
+  appendChatToken: (token: string) => void;
+  finishChatMessage: () => void;
+  setIsChatting: (v: boolean) => void;
   reset: () => void;
   pushTelemetry: (data: TelemetryData) => void;
 }
@@ -118,6 +131,8 @@ export const useAgentStore = create<StoreState>((set) => ({
   activeScenarioType: null,
   labelScan: null,
   alertSent: null,
+  chatMessages: [],
+  isChatting: false,
   metrics: {
     oee:         makeMetric(83.4,  4),
     waste:       makeMetric(3.1,   0.8),
@@ -170,6 +185,28 @@ export const useAgentStore = create<StoreState>((set) => ({
   setActiveScenarioType: (t) => set({ activeScenarioType: t }),
   setLabelScan: (scan) => set({ labelScan: scan }),
   setAlertSent: (alert) => set({ alertSent: alert }),
+  setIsChatting: (v) => set({ isChatting: v }),
+
+  addChatMessage: (msg) =>
+    set((s) => ({ chatMessages: [...s.chatMessages, msg] })),
+
+  appendChatToken: (token) =>
+    set((s) => {
+      const msgs = [...s.chatMessages];
+      const last = msgs[msgs.length - 1];
+      if (last?.streaming) {
+        msgs[msgs.length - 1] = { ...last, content: last.content + token };
+      }
+      return { chatMessages: msgs };
+    }),
+
+  finishChatMessage: () =>
+    set((s) => {
+      const msgs = [...s.chatMessages];
+      const last = msgs[msgs.length - 1];
+      if (last?.streaming) msgs[msgs.length - 1] = { ...last, streaming: false };
+      return { chatMessages: msgs };
+    }),
 
   reset: () =>
     set((s) => ({
@@ -184,6 +221,8 @@ export const useAgentStore = create<StoreState>((set) => ({
       activeScenarioType: null,
       labelScan: null,
       alertSent: null,
+      chatMessages: [],
+      isChatting: false,
     })),
 
   pushTelemetry: (data) =>
