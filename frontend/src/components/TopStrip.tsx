@@ -8,6 +8,7 @@ export default function TopStrip() {
   const scenarioName     = useAgentStore((s) => s.scenarioName);
   const nfcTrigger       = useAgentStore((s) => s.nfcTrigger);
   const runCount         = useAgentStore((s) => s.runCount);
+  const totalSavings     = useAgentStore((s) => s.totalSavings);
 
   useEffect(() => {
     const id = setInterval(() => setTime(_fmt(new Date())), 1000);
@@ -51,8 +52,24 @@ export default function TopStrip() {
           <>
             <div style={{ width: 1, height: 16, background: "var(--border-hairline)" }} />
             <span className="font-mono" style={{ fontSize: 10, color: "var(--ink-muted)" }}>
-              {runCount} analysis run{runCount !== 1 ? "s" : ""}
+              {runCount} run{runCount !== 1 ? "s" : ""}
             </span>
+          </>
+        )}
+        {totalSavings > 0 && (
+          <>
+            <div style={{ width: 1, height: 16, background: "var(--border-hairline)" }} />
+            <div className="flex items-center gap-1.5">
+              <span className="font-mono" style={{ fontSize: 10, color: "#15803D" }}>
+                💰
+              </span>
+              <span className="font-display tabular font-medium" style={{ fontSize: 13, color: "#15803D", letterSpacing: "-0.01em" }}>
+                ${totalSavings.toLocaleString()}
+              </span>
+              <span className="font-mono" style={{ fontSize: 9, color: "#76767C" }}>
+                saved
+              </span>
+            </div>
           </>
         )}
       </div>

@@ -71,6 +71,8 @@ interface StoreState {
   alertSent: AlertSent | null;
   chatMessages: ChatMessage[];
   isChatting: boolean;
+  totalSavings: number;      // cumulative across all runs — never reset
+  lastRunSavings: number | null;  // savings from most recent run
   metrics: {
     oee: MetricSeries;
     waste: MetricSeries;
@@ -95,6 +97,7 @@ interface StoreState {
   appendChatToken: (token: string) => void;
   finishChatMessage: () => void;
   setIsChatting: (v: boolean) => void;
+  addSavings: (amount: number) => void;
   reset: () => void;
   pushTelemetry: (data: TelemetryData) => void;
 }
@@ -133,6 +136,8 @@ export const useAgentStore = create<StoreState>((set) => ({
   alertSent: null,
   chatMessages: [],
   isChatting: false,
+  totalSavings: 0,
+  lastRunSavings: null,
   metrics: {
     oee:         makeMetric(83.4,  4),
     waste:       makeMetric(3.1,   0.8),
@@ -187,6 +192,12 @@ export const useAgentStore = create<StoreState>((set) => ({
   setAlertSent: (alert) => set({ alertSent: alert }),
   setIsChatting: (v) => set({ isChatting: v }),
 
+  addSavings: (amount) =>
+    set((s) => ({
+      totalSavings:   s.totalSavings + amount,
+      lastRunSavings: amount,
+    })),
+
   addChatMessage: (msg) =>
     set((s) => ({ chatMessages: [...s.chatMessages, msg] })),
 
@@ -223,6 +234,8 @@ export const useAgentStore = create<StoreState>((set) => ({
       alertSent: null,
       chatMessages: [],
       isChatting: false,
+      lastRunSavings: null,
+      // totalSavings intentionally NOT reset — it's cumulative
     })),
 
   pushTelemetry: (data) =>

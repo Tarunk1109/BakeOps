@@ -7,6 +7,7 @@ import {
 import { useAgentStore } from "../store/agentStore";
 import type { StreamEntry, ChatMessage } from "../store/agentStore";
 import SpeedComparison from "./SpeedComparison";
+import SavingsCard from "./SavingsCard";
 
 // ─── Dark-panel agent colors ──────────────────────────────────────────────────
 const AGENT_COLORS: Record<string, string> = {
@@ -749,7 +750,9 @@ export default function ActiveStream() {
             <div ref={finalCardRef}>
               <FinalCard rec={finalRec} runCount={runCount} />
             </div>
-            {/* Telegram delivery badge — appears after FinalCard */}
+            {/* Savings card — counts up the net value protected */}
+            <SavingsCard rec={finalRec} />
+            {/* Telegram delivery badge */}
             <TelegramBadge />
             <SpeedComparison />
             {/* Follow-up chat history — input is in the CommandBar below */}
