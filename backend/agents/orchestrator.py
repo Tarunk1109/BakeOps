@@ -157,9 +157,14 @@ async def run(
             yield events.agent_thinking(AGENT_ID, text)
 
     # specialist_outputs[0] is the raw SSE data dict: {"output": {"recommendation": {...}, ...}}
+    print(f"[Orchestrator] specialist_outputs count: {len(specialist_outputs)}")
+    if specialist_outputs:
+        print(f"[Orchestrator] specialist_outputs[0] keys: {list(specialist_outputs[0].keys())}")
     raw_output  = specialist_outputs[0] if specialist_outputs else {}
     inner       = raw_output.get("output", raw_output)           # unwrap the "output" wrapper
     primary_rec = inner.get("recommendation", inner)             # get the structured rec
+    print(f"[Orchestrator] primary_rec keys: {list(primary_rec.keys()) if isinstance(primary_rec, dict) else type(primary_rec)}")
+    print(f"[Orchestrator] primary_rec sample: { {k: v for k, v in list(primary_rec.items())[:5]} if isinstance(primary_rec, dict) else primary_rec}")
     final_rec = {
         "summary": synthesis_text,
         "specialist_recommendation": primary_rec,
@@ -176,17 +181,32 @@ async def run(
         from services.telegram import send_alert, _is_configured
         if _is_configured():
             sr = primary_rec
+
+            # ── Pull cost fields (already coerced to float by _coerce_numbers) ──
+            cost_action_val   = sr.get("cost_of_action_usd") or sr.get("estimated_cost_impact_usd")
+            cost_inaction_val = sr.get("cost_of_inaction_usd") or sr.get("estimated_cost_of_inaction_usd")
+
+            cost_action_str   = f"${int(cost_action_val):,}"   if isinstance(cost_action_val,   (int, float)) else "N/A"
+            cost_inaction_str = f"${int(cost_inaction_val):,}" if isinstance(cost_inaction_val, (int, float)) else "N/A"
+
+            # ── Prefer explicit fields; fall back to orchestrator summary ────────
+            diagnosis_text = (
+                sr.get("diagnosis") or
+                sr.get("disruption_summary") or
+                synthesis_text.strip()          # always present — orchestrator exec summary
+            )
+            action_text = (
+                sr.get("recommended_action") or
+                synthesis_text.strip()
+            )
+
             delivered = await send_alert(
-                scenario_title     = _infer_title(scenario),
-                diagnosis          = str(sr.get("diagnosis") or sr.get("disruption_summary") or "See full analysis"),
-                recommended_action = str(sr.get("recommended_action", "See full analysis")),
-                cost_of_action     = f"${int(sr.get('cost_of_action_usd', 0)):,}"
-                                     if sr.get("cost_of_action_usd") is not None
-                                     else str(sr.get("estimated_cost_impact_usd", "N/A")),
-                cost_of_inaction   = f"${int(sr.get('cost_of_inaction_usd', 0)):,}"
-                                     if sr.get("cost_of_inaction_usd") is not None
-                                     else str(sr.get("estimated_cost_of_inaction_usd", "N/A")),
-                confidence         = float(sr.get("confidence", 0.85)),
+                scenario_title        = _infer_title(scenario),
+                diagnosis             = str(diagnosis_text),
+                recommended_action    = str(action_text),
+                cost_of_action        = cost_action_str,
+                cost_of_inaction      = cost_inaction_str,
+                confidence            = float(sr.get("confidence", 0.85)),
                 response_time_seconds = elapsed,
             )
             if delivered:

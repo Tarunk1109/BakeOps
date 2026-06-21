@@ -12,6 +12,9 @@ frontend/dist/
 # OS
 .DS_Store
 
+# Startup script (contains ngrok auth token)
+start.sh
+
 # Planning documents (internal only)
 BAKEOPS_DAY1_PLAN.md
 BAKEOPS_DAY2_PLAN.md

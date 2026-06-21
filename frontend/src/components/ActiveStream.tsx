@@ -7,7 +7,7 @@ import {
 import { useAgentStore } from "../store/agentStore";
 import type { StreamEntry, ChatMessage } from "../store/agentStore";
 import SpeedComparison from "./SpeedComparison";
-import SavingsCard from "./SavingsCard";
+import SavingsCard, { extractSavings } from "./SavingsCard";
 
 // ─── Dark-panel agent colors ──────────────────────────────────────────────────
 const AGENT_COLORS: Record<string, string> = {
@@ -405,7 +405,8 @@ function FinalCard({ rec, runCount }: { rec: Record<string, unknown>; runCount: 
     ["Affected Products",  sr.affected_products],
   ];
 
-  const refNum = `BO-${Date.now().toString(36).toUpperCase().slice(-6)}`;
+  const refNum   = `BO-${Date.now().toString(36).toUpperCase().slice(-6)}`;
+  const savings  = extractSavings(rec);
 
   return (
     <div
@@ -458,6 +459,94 @@ function FinalCard({ rec, runCount }: { rec: Record<string, unknown>; runCount: 
       </div>
 
       <div className="p-5 flex flex-col gap-4">
+
+        {/* ── Savings banner — always the first thing you see ─────────────── */}
+        {savings !== null && (
+          <div
+            className="rounded-xl overflow-hidden fade-up"
+            style={{
+              background: "linear-gradient(135deg, #052E16 0%, #064E3B 50%, #065F46 100%)",
+              border: "1px solid rgba(74,222,128,0.25)",
+              boxShadow: "0 0 24px rgba(34,197,94,0.12), inset 0 1px 0 rgba(74,222,128,0.15)",
+            }}
+          >
+            {/* Top label strip */}
+            <div
+              className="flex items-center justify-between px-4 py-2"
+              style={{ borderBottom: "1px solid rgba(74,222,128,0.12)" }}
+            >
+              <div className="flex items-center gap-2">
+                <div
+                  style={{
+                    width: 6, height: 6, borderRadius: "50%",
+                    background: "#4ADE80",
+                    animation: "live-pulse 2s ease-in-out infinite",
+                  }}
+                />
+                <span className="font-mono uppercase tracking-[0.22em]" style={{ fontSize: 8, color: "#4ADE80" }}>
+                  Value Protected · Act Now
+                </span>
+              </div>
+              <div
+                className="flex items-center gap-1 px-2 py-0.5 rounded-full"
+                style={{ background: "rgba(74,222,128,0.12)", border: "1px solid rgba(74,222,128,0.2)" }}
+              >
+                <svg width="7" height="7" viewBox="0 0 8 8" fill="none">
+                  <path d="M1.5 4L3 5.5L6.5 2" stroke="#4ADE80" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                <span className="font-mono" style={{ fontSize: 7.5, color: "#4ADE80" }}>AI Verified</span>
+              </div>
+            </div>
+
+            {/* The big number */}
+            <div className="px-4 py-4 flex items-center justify-between gap-4">
+              <div>
+                <div
+                  className="font-display tabular font-semibold"
+                  style={{
+                    fontSize: 42,
+                    color: "#4ADE80",
+                    letterSpacing: "-0.04em",
+                    lineHeight: 1,
+                    textShadow: "0 0 32px rgba(74,222,128,0.5)",
+                  }}
+                >
+                  ${savings.toLocaleString()}
+                </div>
+                <div className="font-mono uppercase mt-1.5" style={{ fontSize: 8.5, color: "rgba(74,222,128,0.6)", letterSpacing: "0.18em" }}>
+                  saved by acting now
+                </div>
+              </div>
+
+              {/* Mini breakdown */}
+              <div className="flex flex-col gap-1.5 shrink-0">
+                {!!(sr.cost_of_inaction_usd || sr.estimated_cost_of_inaction_usd) && (
+                  <div className="flex items-center gap-2">
+                    <div style={{ width: 6, height: 6, borderRadius: 1, background: "#F87171", flexShrink: 0 }} />
+                    <span className="font-mono" style={{ fontSize: 9, color: "rgba(255,255,255,0.45)" }}>
+                      Risk: ${Number(sr.cost_of_inaction_usd ?? sr.estimated_cost_of_inaction_usd).toLocaleString()}
+                    </span>
+                  </div>
+                )}
+                {!!(sr.cost_of_action_usd || sr.estimated_cost_impact_usd) && (
+                  <div className="flex items-center gap-2">
+                    <div style={{ width: 6, height: 6, borderRadius: 1, background: "#60A5FA", flexShrink: 0 }} />
+                    <span className="font-mono" style={{ fontSize: 9, color: "rgba(255,255,255,0.45)" }}>
+                      Cost: ${Number(sr.cost_of_action_usd ?? sr.estimated_cost_impact_usd).toLocaleString()}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <div style={{ width: 6, height: 6, borderRadius: 1, background: "#4ADE80", flexShrink: 0 }} />
+                  <span className="font-mono font-semibold" style={{ fontSize: 9, color: "#4ADE80" }}>
+                    Net: ${savings.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Summary */}
         {summary && (
           <div className="pb-4" style={{ borderBottom: "1px solid rgba(14,14,16,0.07)" }}>
@@ -863,6 +952,7 @@ export default function ActiveStream() {
             <ChatPanel />
           </>
         )}
+
       </div>
     </div>
   );
