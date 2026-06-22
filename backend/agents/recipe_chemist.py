@@ -12,6 +12,7 @@ import httpx
 from config import ANTHROPIC_API_KEY, SPECIALIST_MODEL
 from streaming import events
 from agents.prompts import RECIPE_CHEMIST_SYSTEM
+from agents.off_mcp_client import lookup_product_via_mcp
 
 AGENT_ID = "recipe_chemist"
 AGENT_NAME = "Recipe Chemist"
@@ -100,7 +101,7 @@ Analyze the ingredient list and provide your clean-label reformulation recommend
     if barcode_match:
         barcode = barcode_match.group(1)
         yield events.agent_tool_call(AGENT_ID, "open_food_facts_lookup", {"query": barcode})
-        off_data = await _lookup_open_food_facts(barcode)
+        off_data = await lookup_product_via_mcp(barcode)
         if off_data.get("found"):
             yield events.agent_tool_result(AGENT_ID, "open_food_facts_lookup", off_data)
             content.append({
