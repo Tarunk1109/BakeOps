@@ -1,5 +1,6 @@
 # Python
 backend/venv/
+backend/venv_py39_backup/
 backend/__pycache__/
 backend/**/__pycache__/
 backend/*.pyc
@@ -21,3 +22,6 @@ BAKEOPS_DAY2_PLAN.md
 BAKEOPS_DAY3_PLAN.md
 BAKEOPS_DAY4_WOW_PLAN.md
 BAKEOPS_TELEGRAM_AND_WEBCAM.md
+BUILD_PLAN_RECON.md
+INTERVIEW_PREP.md
+plan.md
