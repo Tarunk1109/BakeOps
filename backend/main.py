@@ -16,7 +16,8 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
 from config import ANTHROPIC_API_KEY, FACTORY_STATE_PATH
-from agents import orchestrator
+# from agents import orchestrator                       # original custom-asyncio orchestrator
+from agents import orchestrator_graph as orchestrator    # LangGraph version (drop-in)
 from streaming import events as ev
 
 app = FastAPI(title="BakeOps Command Center")
